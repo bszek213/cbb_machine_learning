@@ -18,6 +18,7 @@ from sklearn.ensemble import RandomForestRegressor
 import matplotlib.pyplot as plt 
 import seaborn as sns
 from sys import argv
+from sklearn.metrics import mean_squared_error, r2_score
 class cbb_regressor():
     def __init__(self):
         print('initialize class cbb_regressor')
@@ -87,7 +88,6 @@ class cbb_regressor():
         self.x_no_corr.dropna(inplace=True)
         self.y = self.y.loc[real_values]
         self.x_train, self.x_test, self.y_train, self.y_test = train_test_split(self.x_no_corr, self.y, train_size=0.8)
-        
     def pre_process(self):
         # Remove features with a correlation coef greater than 0.85
         corr_matrix = np.abs(self.x.astype(float).corr())
@@ -127,7 +127,7 @@ class cbb_regressor():
             RandForclass = RandomForestRegressor()
             rows, cols = self.x_train.shape
             Rand_perm = {
-                'criterion' : ["squared_error", "absolute_error", "poisson"],
+                'criterion' : ["squared_error", "poisson"], #absolute_error - takes forever to run
                 'n_estimators': range(100,500,100),
                 # 'min_samples_split': np.arange(2, 5, 1, dtype=int),
                 'max_features' : [1, 'sqrt', 'log2'],
@@ -135,20 +135,86 @@ class cbb_regressor():
                 }
             #['accuracy', 'adjusted_mutual_info_score', 'adjusted_rand_score', 'average_precision', 'balanced_accuracy', 'completeness_score', 'explained_variance', 'f1', 'f1_macro', 'f1_micro', 'f1_samples', 'f1_weighted', 'fowlkes_mallows_score', 'homogeneity_score', 'jaccard', 'jaccard_macro', 'jaccard_micro', 'jaccard_samples', 'jaccard_weighted', 'matthews_corrcoef', 'max_error', 'mutual_info_score', 'neg_brier_score', 'neg_log_loss', 'neg_mean_absolute_error', 'neg_mean_absolute_percentage_error', 'neg_mean_gamma_deviance', 'neg_mean_poisson_deviance', 'neg_mean_squared_error', 'neg_mean_squared_log_error', 'neg_median_absolute_error', 'neg_root_mean_squared_error', 'normalized_mutual_info_score', 'precision', 'precision_macro', 'precision_micro', 'precision_samples', 'precision_weighted', 'r2', 'rand_score', 'recall', 'recall_macro', 'recall_micro', 'recall_samples', 'recall_weighted', 'roc_auc', 'roc_auc_ovo', 'roc_auc_ovo_weighted', 'roc_auc_ovr', 'roc_auc_ovr_weighted', 'top_k_accuracy', 'v_measure_score']
             clf_rand = GridSearchCV(RandForclass, Rand_perm, scoring=['neg_root_mean_squared_error','explained_variance'],
-                               refit='neg_root_mean_squared_error',verbose=4, n_jobs=4)
+                               refit='neg_root_mean_squared_error',verbose=4, n_jobs=-1)
             search_rand = clf_rand.fit(self.x_train,self.y_train)
             #TODO: Write best params to file
             #with open('data.yml', 'w') as outfile:
                 # yaml.dump(data, outfile, default_flow_style=False)
             print('RandomForestRegressor - best params: ',search_rand.best_params_)
+        else:
+            print('fit to tuned Random Forest Regressor')
+            self.RandForRegressor = RandomForestRegressor(criterion='squared_error', max_depth=20, max_features='log2', n_estimators=300)
+            self.RandForRegressor.fit(self.x_train,self.y_train)
+            print('RMSE: ',mean_squared_error(self.RandForRegressor.predict(self.x_test),self.y_test,squared=False))
+            print('R2 score: ',r2_score(self.RandForRegressor.predict(self.x_test),self.y_test))
     def multi_layer_perceptron(self):
         pass
     def keras_regressor_analysis(self):
+        pass
+    def predict_two_teams(self):
+        while True:
+            try:
+                team_1 = input('team_1: ')
+                if team_1 == 'exit':
+                    break
+                team_2 = input('team_2: ')
+                #2023 data
+                year = 2023
+                basic = 'https://www.sports-reference.com/cbb/schools/' + team_1.lower() + '/' + str(year) + '-gamelogs.html'
+                adv = 'https://www.sports-reference.com/cbb/schools/' + team_1.lower() + '/' + str(year) + '-gamelogs-advanced.html'
+                team_1_df2023 = cbb_web_scraper.html_to_df_web_scrape_cbb(basic,adv,team_1.lower(),year)
+                basic = 'https://www.sports-reference.com/cbb/schools/' + team_2.lower() + '/' + str(year) + '-gamelogs.html'
+                adv = 'https://www.sports-reference.com/cbb/schools/' + team_2.lower() + '/' + str(year) + '-gamelogs-advanced.html'
+                team_2_df2023 = cbb_web_scraper.html_to_df_web_scrape_cbb(basic,adv,team_2.lower(),year)
+                #Remove empty cells
+                team_1_df2023['pts'].replace('', np.nan, inplace=True)
+                team_1_df2023.dropna(inplace=True)
+                team_2_df2023['pts'].replace('', np.nan, inplace=True)
+                team_2_df2023.dropna(inplace=True)
+                #Remove pts and game result
+                team_1_df2023.drop(columns=['game_result','pts'],inplace=True)
+                team_2_df2023.drop(columns=['game_result','pts'],inplace=True)
+                #Drop the correlated features
+                team_1_df2023.drop(columns=self.drop_cols, inplace=True)
+                team_2_df2023.drop(columns=self.drop_cols, inplace=True)
+                #Clean up dataframe
+                for col in team_1_df2023.columns:
+                    if 'Unnamed' in col:
+                        team_1_df2023.drop(columns=col,inplace=True)
+                for col in team_2_df2023.columns:
+                    if 'Unnamed' in col:
+                        team_2_df2023.drop(columns=col,inplace=True)
+                #Try to find the moving averages that work
+                ma_range = np.arange(2,len(team_2_df2023),1)
+                team_1_count = 0
+                team_1_ma = []
+                team_2_count = 0
+                team_2_ma = []
+                for ma in tqdm(ma_range):
+                    data1 = team_1_df2023.dropna().rolling(ma).median()
+                    data2 = team_2_df2023.dropna().rolling(ma).median()
+                    team_1_predict = self.RandForRegressor.predict(data1.iloc[-1:])
+                    team_2_predict = self.RandForRegressor.predict(data2.iloc[-1:])
+                    if team_1_predict > team_2_predict:
+                        team_1_count += 1
+                        team_1_ma.append(ma)
+                    if team_1_predict < team_2_predict:
+                        team_2_count += 1
+                        team_2_ma.append(ma)
+                print('===============================================================')
+                print(f'Rolling median outcomes with a rolling median from 2-{len(team_2_df2023)} games')
+                print(f'{team_1}: {team_1_count} | {team_1_ma}')
+                print(f'{team_2}: {team_2_count} | {team_2_ma}')
+                print('===============================================================')
+            except:
+                print(f'{team_1} data could not be found. check spelling or internet connection')
+    def feature_importances(self):
         pass
     def run_analysis(self):
         self.get_teams()
         self.split()
         self.random_forest_analysis()
+        self.predict_two_teams()
 def main():
     cbb_regressor().run_analysis()
 if __name__ == '__main__':
