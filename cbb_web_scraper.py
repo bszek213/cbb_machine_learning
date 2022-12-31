@@ -15,8 +15,7 @@ from urllib import request
 from urllib.request import Request, urlopen
 from pandas import read_csv
 from numpy import where
-
-def get_teams_year(year):
+def get_teams_year(year_min,year_max):
     #Try to redo this when 429 is not an issue
     # URL = 'https://www.sports-reference.com/cbb/schools/'
     # hdr = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"}
@@ -29,7 +28,7 @@ def get_teams_year(year):
     #Read in from csv
     teams_save = []
     teams = read_csv('all_teams_cbb.csv')
-    teams_with_year = where(teams['To'] == year)[0]
+    teams_with_year = where((teams['From'] <= year_min) & (teams['To'] == year_max))[0]
     for team in teams['School'].iloc[teams_with_year]:
         team = team.replace(' ', '-').lower()
         if '.' in team:
@@ -47,18 +46,15 @@ def get_teams_year(year):
     return teams_save
 
 def html_to_df_web_scrape_cbb(URL,URL1,team,year):
-    print(URL)
     hdr = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"}
     req_1 = Request(URL,headers=hdr)
     html_1 = request.urlopen(req_1)
     req_2 = Request(URL1,headers=hdr)
     html_2 = request.urlopen(req_2)
-    # while True:
+    # while True:4700++6
         # try:
     soup_1 = BeautifulSoup(html_1, "html.parser")
     soup_2 = BeautifulSoup(html_2, "html.parser")
-    print(soup_1)
-    input()
             # page = requests.get(URL)
             # soup = BeautifulSoup(page.content, "html.parser")
             # page1 = requests.get(URL1)
@@ -67,8 +63,8 @@ def html_to_df_web_scrape_cbb(URL,URL1,team,year):
         # except:
         #     print('HTTPSConnectionPool(host="www.sports-reference.com", port=443): Max retries exceeded. Retry in 10 seconds')
         #     sleep(10)
-    table = soup.find(id="all_sgl-basic")
-    table1 = soup1.find(id="all_sgl-advanced")
+    table = soup_1.find(id="all_sgl-basic")
+    table1 = soup_2.find(id="all_sgl-advanced")
     tbody = table.find('tbody')
     tbody1 = table1.find('tbody')
     tr_body = tbody.find_all('tr')
@@ -113,6 +109,7 @@ def html_to_df_web_scrape_cbb(URL,URL1,team,year):
     opp_blk= []
     opp_tov= []
     opp_pf= []
+    #BASIC STATS
     for trb in tr_body:
         for td in trb.find_all('td'):
             if td.get('data-stat') == "game_result":
@@ -245,8 +242,6 @@ def html_to_df_web_scrape_cbb(URL,URL1,team,year):
                 drb_pct.append(td.get_text())
             if td.get('data-stat') == "opp_ft_rate":
                 opp_ft_rate.append(td.get_text())
-            
-            
     return DataFrame(list(zip(game_result,pts,opp_pts,fg,fga,
     fg_pct,fg3,fg3a,fg3_pct,ft,fta,ft_pct,orb,total_board,ast,
     stl,blk,tov,pf,opp_fg,opp_fga,opp_fg_pct,opp_fg3,opp_fg3a,opp_fg3_pct,
