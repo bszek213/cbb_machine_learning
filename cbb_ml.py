@@ -82,14 +82,18 @@ class cbb_regressor():
         self.y = self.all_data['pts']
         self.x = self.all_data.drop(columns=['pts','game_result'])
         self.pre_process()
+        #Dropna and remove all data from subsequent y data
+        real_values = ~self.x_no_corr.isna().any(axis=1)
+        self.x_no_corr.dropna(inplace=True)
+        self.y = self.y.loc[real_values]
         self.x_train, self.x_test, self.y_train, self.y_test = train_test_split(self.x_no_corr, self.y, train_size=0.8)
+        
     def pre_process(self):
         # Remove features with a correlation coef greater than 0.85
         corr_matrix = np.abs(self.x.astype(float).corr())
         upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(np.bool))
         to_drop = [column for column in upper.columns if any(upper[column] >= 0.85)]
         self.drop_cols = to_drop
-        self.drop_cols = []
         self.x_no_corr = self.x.drop(columns=to_drop)
         cols = self.x_no_corr.columns
         print(f'Columns dropped: {self.drop_cols}')
@@ -121,11 +125,13 @@ class cbb_regressor():
         if argv[1] == 'tune':
             #RANDOM FOREST
             RandForclass = RandomForestRegressor()
+            rows, cols = self.x_train.shape
             Rand_perm = {
                 'criterion' : ["squared_error", "absolute_error", "poisson"],
-                'n_estimators': range(100,500,51),
-                'min_samples_split': np.arange(2, 5, 1, dtype=int),
-                'max_features' : [1, 'sqrt', 'log2']
+                'n_estimators': range(100,500,100),
+                # 'min_samples_split': np.arange(2, 5, 1, dtype=int),
+                'max_features' : [1, 'sqrt', 'log2'],
+                'max_depth': np.arange(3,cols,1)
                 }
             #['accuracy', 'adjusted_mutual_info_score', 'adjusted_rand_score', 'average_precision', 'balanced_accuracy', 'completeness_score', 'explained_variance', 'f1', 'f1_macro', 'f1_micro', 'f1_samples', 'f1_weighted', 'fowlkes_mallows_score', 'homogeneity_score', 'jaccard', 'jaccard_macro', 'jaccard_micro', 'jaccard_samples', 'jaccard_weighted', 'matthews_corrcoef', 'max_error', 'mutual_info_score', 'neg_brier_score', 'neg_log_loss', 'neg_mean_absolute_error', 'neg_mean_absolute_percentage_error', 'neg_mean_gamma_deviance', 'neg_mean_poisson_deviance', 'neg_mean_squared_error', 'neg_mean_squared_log_error', 'neg_median_absolute_error', 'neg_root_mean_squared_error', 'normalized_mutual_info_score', 'precision', 'precision_macro', 'precision_micro', 'precision_samples', 'precision_weighted', 'r2', 'rand_score', 'recall', 'recall_macro', 'recall_micro', 'recall_samples', 'recall_weighted', 'roc_auc', 'roc_auc_ovo', 'roc_auc_ovo_weighted', 'roc_auc_ovr', 'roc_auc_ovr_weighted', 'top_k_accuracy', 'v_measure_score']
             clf_rand = GridSearchCV(RandForclass, Rand_perm, scoring=['neg_root_mean_squared_error','explained_variance'],
