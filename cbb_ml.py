@@ -177,6 +177,8 @@ class cbb_regressor():
                 #Drop the correlated features
                 team_1_df2023.drop(columns=self.drop_cols, inplace=True)
                 team_2_df2023.drop(columns=self.drop_cols, inplace=True)
+                print(team_1_df2023.columns)
+                print(team_2_df2023.columns)
                 #Clean up dataframe
                 for col in team_1_df2023.columns:
                     if 'Unnamed' in col:
@@ -187,27 +189,55 @@ class cbb_regressor():
                 #Try to find the moving averages that work
                 ma_range = np.arange(2,len(team_2_df2023),1)
                 team_1_count = 0
-                team_1_ma = []
                 team_2_count = 0
+                team_1_count_mean = 0
+                team_2_count_mean = 0
+                team_1_ma = []
                 team_2_ma = []
+                team_1_median = []
+                team_2_median = []
+                num_pts_score_team_1= []
+                num_pts_score_team_2 = []
                 for ma in tqdm(ma_range):
                     data1 = team_1_df2023.dropna().rolling(ma).median()
                     data2 = team_2_df2023.dropna().rolling(ma).median()
+                    data1_mean = team_1_df2023.dropna().rolling(ma).mean()
+                    data2_mean = team_2_df2023.dropna().rolling(ma).mean()
                     team_1_predict = self.RandForRegressor.predict(data1.iloc[-1:])
                     team_2_predict = self.RandForRegressor.predict(data2.iloc[-1:])
+                    team_1_predict_mean = self.RandForRegressor.predict(data1_mean.iloc[-1:])
+                    team_2_predict_mean = self.RandForRegressor.predict(data2_mean.iloc[-1:])
+                    num_pts_score_team_1.append(team_1_predict_mean[0])
+                    num_pts_score_team_2.append(team_2_predict_mean[0])
+                    num_pts_score_team_1.append(team_1_predict[0])
+                    num_pts_score_team_2.append(team_2_predict[0])
                     if team_1_predict > team_2_predict:
                         team_1_count += 1
-                        team_1_ma.append(ma)
+                        team_1_median.append(ma)
                     if team_1_predict < team_2_predict:
                         team_2_count += 1
+                        team_2_median.append(ma)
+                    if team_1_predict_mean > team_2_predict_mean:
+                        team_1_count_mean += 1
+                        team_1_ma.append(ma)
+                    if team_1_predict_mean < team_2_predict_mean:
+                        team_2_count_mean += 1
                         team_2_ma.append(ma)
                 print('===============================================================')
                 print(f'Rolling median outcomes with a rolling median from 2-{len(team_2_df2023)} games')
-                print(f'{team_1}: {team_1_count} | {team_1_ma}')
-                print(f'{team_2}: {team_2_count} | {team_2_ma}')
+                print(f'{team_1}: {team_1_count} | {team_1_median}')
+                print(f'{team_2}: {team_2_count} | {team_2_median}')
                 print('===============================================================')
-            except:
-                print(f'{team_1} data could not be found. check spelling or internet connection')
+                print(f'Rolling mean outcomes with a mean median from 2-{len(team_2_df2023)} games')
+                print(f'{team_1}: {team_1_count_mean} | {team_1_ma}')
+                print(f'{team_2}: {team_2_count_mean} | {team_2_ma}')
+                print('===============================================================')
+                print(f'{team_1} number of pts score: {np.mean(num_pts_score_team_1)}')
+                print(f'{team_2} number of pts score: {np.mean(num_pts_score_team_2)}')
+                print('===============================================================')
+            except Exception as e:
+                print(f'The error: {e}')
+                print(f'{team_1} or {team_2} data could not be found. check spelling or internet connection')
     def feature_importances(self):
         pass
     def run_analysis(self):
