@@ -171,23 +171,30 @@ class cbb_regressor():
                 team_1_df2023.dropna(inplace=True)
                 team_2_df2023['pts'].replace('', np.nan, inplace=True)
                 team_2_df2023.dropna(inplace=True)
+                #Save series of pts for visualizations
+                self.pts_team_1 = team_1_df2023['pts'].astype(float)
+                self.team_1_name = team_1
+                self.pts_team_2 = team_2_df2023['pts'].astype(float)
+                self.team_2_name = team_2
                 #Remove pts and game result
                 team_1_df2023.drop(columns=['game_result','pts'],inplace=True)
                 team_2_df2023.drop(columns=['game_result','pts'],inplace=True)
                 #Drop the correlated features
                 team_1_df2023.drop(columns=self.drop_cols, inplace=True)
                 team_2_df2023.drop(columns=self.drop_cols, inplace=True)
-                print(team_1_df2023.columns)
-                print(team_2_df2023.columns)
+                # team_1_df2023.to_csv('team_1.csv')
+                # team_2_df2023.to_csv('team_2.csv')
+                print(team_1_df2023)
+                print(team_2_df2023)
                 #Clean up dataframe
-                for col in team_1_df2023.columns:
-                    if 'Unnamed' in col:
-                        team_1_df2023.drop(columns=col,inplace=True)
-                for col in team_2_df2023.columns:
-                    if 'Unnamed' in col:
-                        team_2_df2023.drop(columns=col,inplace=True)
+                # for col in team_1_df2023.columns:
+                #     if 'Unnamed' in col:
+                #         team_1_df2023.drop(columns=col,inplace=True)
+                # for col in team_2_df2023.columns:
+                #     if 'Unnamed' in col:
+                #         team_2_df2023.drop(columns=col,inplace=True)
                 #Try to find the moving averages that work
-                ma_range = np.arange(2,len(team_2_df2023),1)
+                ma_range = np.arange(2,len(team_2_df2023)-2,1)
                 team_1_count = 0
                 team_2_count = 0
                 team_1_count_mean = 0
@@ -199,10 +206,14 @@ class cbb_regressor():
                 num_pts_score_team_1= []
                 num_pts_score_team_2 = []
                 for ma in tqdm(ma_range):
-                    data1 = team_1_df2023.dropna().rolling(ma).median()
-                    data2 = team_2_df2023.dropna().rolling(ma).median()
-                    data1_mean = team_1_df2023.dropna().rolling(ma).mean()
-                    data2_mean = team_2_df2023.dropna().rolling(ma).mean()
+                    data1 = team_1_df2023.rolling(ma).median()
+                    data2 = team_2_df2023.rolling(ma).median()
+                    data1_mean = team_1_df2023.rolling(ma).mean()
+                    data2_mean = team_2_df2023.rolling(ma).mean()
+                    # print(data1.iloc[-1:])
+                    # print(data2.iloc[-1:])
+                    # print(data1_mean.iloc[-1:])
+                    # print(data2_mean.iloc[-1:])
                     team_1_predict = self.RandForRegressor.predict(data1.iloc[-1:])
                     team_2_predict = self.RandForRegressor.predict(data2.iloc[-1:])
                     team_1_predict_mean = self.RandForRegressor.predict(data1_mean.iloc[-1:])
@@ -224,22 +235,37 @@ class cbb_regressor():
                         team_2_count_mean += 1
                         team_2_ma.append(ma)
                 print('===============================================================')
-                print(f'Rolling median outcomes with a rolling median from 2-{len(team_2_df2023)} games')
+                print(f'Outcomes with a rolling median from 2-{len(team_2_df2023)} games')
                 print(f'{team_1}: {team_1_count} | {team_1_median}')
                 print(f'{team_2}: {team_2_count} | {team_2_median}')
                 print('===============================================================')
-                print(f'Rolling mean outcomes with a mean median from 2-{len(team_2_df2023)} games')
+                print(f'Outcomes with a mean from 2-{len(team_2_df2023)} games')
                 print(f'{team_1}: {team_1_count_mean} | {team_1_ma}')
                 print(f'{team_2}: {team_2_count_mean} | {team_2_ma}')
                 print('===============================================================')
                 print(f'{team_1} number of pts score: {np.mean(num_pts_score_team_1)}')
                 print(f'{team_2} number of pts score: {np.mean(num_pts_score_team_2)}')
                 print('===============================================================')
+                self.visualization(np.mean(num_pts_score_team_1),np.mean(num_pts_score_team_2))
             except Exception as e:
                 print(f'The error: {e}')
                 print(f'{team_1} or {team_2} data could not be found. check spelling or internet connection')
     def feature_importances(self):
         pass
+    def visualization(self,pred_1,pred_2):
+        games_1 = range(1,len(self.pts_team_1)+1,1)
+        games_2 = range(1,len(self.pts_team_2)+1,1)
+        team_1_pred = self.team_1_name + " prediction"
+        team_2_pred = self.team_2_name + " prediction"
+        plt.plot(games_1,self.pts_team_1,color='green',label=self.team_1_name)
+        plt.plot(games_2,self.pts_team_2,color='blue',label=self.team_2_name)
+        plt.scatter(len(self.pts_team_1)+2,pred_1,color='green',label=team_1_pred)
+        plt.scatter(len(self.pts_team_2)+2,pred_2,color='blue',label=team_2_pred)
+        plt.legend()
+        plt.xlabel('Games')
+        plt.ylabel('Points')
+        plt.tight_layout()
+        plt.show()
     def run_analysis(self):
         self.get_teams()
         self.split()
