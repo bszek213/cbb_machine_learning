@@ -109,7 +109,7 @@ def html_to_df_web_scrape_cbb(URL,URL1,team,year):
     opp_blk= []
     opp_tov= []
     opp_pf= []
-    #BASIC STATS
+    #BASIC STATS - change td.get_text() to float(td.get_text())
     for trb in tr_body:
         for td in trb.find_all('td'):
             if td.get('data-stat') == "game_result":
