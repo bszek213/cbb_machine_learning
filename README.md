@@ -5,7 +5,7 @@ Machine learning that predicts the outcome of any Division I college basketball 
 ## Usage
 
 ```python
-python cfb_ml.py
+python cbb_ml.py tune or python cbb_ml.py notune
 ```
 
 ```bash
