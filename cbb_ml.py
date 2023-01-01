@@ -250,13 +250,22 @@ class cbb_regressor():
             except Exception as e:
                 print(f'The error: {e}')
                 print(f'{team_1} or {team_2} data could not be found. check spelling or internet connection')
-    def feature_importances(self):
-        pass
+    def feature_importances_random_forest(self):
+        importances = self.RandForRegressor.feature_importances_
+        indices = np.argsort(importances)
+        plt.figure()
+        plt.title('Feature Importances Random Forest')
+        plt.barh(range(len(indices)), importances[indices], color='k', align='center')
+        plt.yticks(range(len(indices)), [self.x_test.columns[i] for i in indices])
+        plt.xlabel('Relative Importance')
+        plt.tight_layout()
+        plt.savefig('feature_importance_random_forest.png',dpi=300)
     def visualization(self,pred_1,pred_2):
         games_1 = range(1,len(self.pts_team_1)+1,1)
         games_2 = range(1,len(self.pts_team_2)+1,1)
         team_1_pred = self.team_1_name + " prediction"
         team_2_pred = self.team_2_name + " prediction"
+        plt.figure()
         plt.plot(games_1,self.pts_team_1,color='green',label=self.team_1_name)
         plt.plot(games_2,self.pts_team_2,color='blue',label=self.team_2_name)
         plt.scatter(len(self.pts_team_1)+2,pred_1,color='green',label=team_1_pred)
@@ -271,6 +280,7 @@ class cbb_regressor():
         self.split()
         self.random_forest_analysis()
         self.predict_two_teams()
+        self.feature_importances_random_forest()
 def main():
     cbb_regressor().run_analysis()
 if __name__ == '__main__':
