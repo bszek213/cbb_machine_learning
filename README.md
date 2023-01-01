@@ -19,6 +19,6 @@ R2 score:  0.985999084167356
 ![](https://github.com/bszek213/cbb_machine_learning/blob/dev/correlations.png)
 
 ### Feature Importances Regression
-
+![](https://github.com/bszek213/cbb_machine_learning/blob/dev/feature_importances_random_forest.png)
 ## Contributing
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
