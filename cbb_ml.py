@@ -19,6 +19,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sys import argv
 from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.model_selection import cross_val_score, KFold
+import pickle
 class cbb_regressor():
     def __init__(self):
         print('initialize class cbb_regressor')
@@ -131,22 +133,37 @@ class cbb_regressor():
                 'n_estimators': range(100,500,100),
                 # 'min_samples_split': np.arange(2, 5, 1, dtype=int),
                 'max_features' : [1, 'sqrt', 'log2'],
-                'max_depth': np.arange(3,cols,1)
+                'max_depth': np.arange(3,cols,1),
+                'min_samples_leaf': np.arange(1,3,1)
                 }
-            #['accuracy', 'adjusted_mutual_info_score', 'adjusted_rand_score', 'average_precision', 'balanced_accuracy', 'completeness_score', 'explained_variance', 'f1', 'f1_macro', 'f1_micro', 'f1_samples', 'f1_weighted', 'fowlkes_mallows_score', 'homogeneity_score', 'jaccard', 'jaccard_macro', 'jaccard_micro', 'jaccard_samples', 'jaccard_weighted', 'matthews_corrcoef', 'max_error', 'mutual_info_score', 'neg_brier_score', 'neg_log_loss', 'neg_mean_absolute_error', 'neg_mean_absolute_percentage_error', 'neg_mean_gamma_deviance', 'neg_mean_poisson_deviance', 'neg_mean_squared_error', 'neg_mean_squared_log_error', 'neg_median_absolute_error', 'neg_root_mean_squared_error', 'normalized_mutual_info_score', 'precision', 'precision_macro', 'precision_micro', 'precision_samples', 'precision_weighted', 'r2', 'rand_score', 'recall', 'recall_macro', 'recall_micro', 'recall_samples', 'recall_weighted', 'roc_auc', 'roc_auc_ovo', 'roc_auc_ovo_weighted', 'roc_auc_ovr', 'roc_auc_ovr_weighted', 'top_k_accuracy', 'v_measure_score']
-            clf_rand = GridSearchCV(RandForclass, Rand_perm, scoring=['neg_root_mean_squared_error','explained_variance'],
+            #['accuracy', 'adjusted_mutual_info_score', 'adjusted_rand_score', 
+            # average_precision', 'balanced_accuracy', 'completeness_score', 'explained_variance', 
+            # 'f1', 'f1_macro', 'f1_micro', 'f1_samples', 'f1_weighted', 'fowlkes_mallows_score', 
+            # 'homogeneity_score', 'jaccard', 'jaccard_macro', 'jaccard_micro', 'jaccard_samples', 
+            # 'jaccard_weighted', 'matthews_corrcoef', 'max_error', 'mutual_info_score', 'neg_brier_score',
+            # 'neg_log_loss', 'neg_mean_absolute_error', 'neg_mean_absolute_percentage_error', 
+            # 'neg_mean_gamma_deviance', 'neg_mean_poisson_deviance', 'neg_mean_squared_error', 
+            # 'neg_mean_squared_log_error', 'neg_median_absolute_error', 'neg_root_mean_squared_error', 
+            # 'normalized_mutual_info_score', 'precision', 'precision_macro', 'precision_micro', 'precision_samples', 'precision_weighted', 'r2', 'rand_score', 'recall', 'recall_macro', 'recall_micro', 'recall_samples', 'recall_weighted', 'roc_auc', 'roc_auc_ovo', 'roc_auc_ovo_weighted', 'roc_auc_ovr', 'roc_auc_ovr_weighted', 'top_k_accuracy', 'v_measure_score']
+            clf_rand = GridSearchCV(RandForclass, Rand_perm, scoring=['neg_root_mean_squared_error','explained_variance'],cv=5
                                refit='neg_root_mean_squared_error',verbose=4, n_jobs=-1)
-            search_rand = clf_rand.fit(self.x_train,self.y_train)
-            #TODO: Write best params to file
-            #with open('data.yml', 'w') as outfile:
-                # yaml.dump(data, outfile, default_flow_style=False)
+            search_rand = clf_rand.fit(self.x_train,self.y_train)# save
+            #Write fitted and tuned model to file
+            with open('randomForestModelTuned.pkl','wb') as f:
+                pickle.dump(search_rand,f)
             print('RandomForestRegressor - best params: ',search_rand.best_params_)
         else:
-            print('fit to tuned Random Forest Regressor')
-            self.RandForRegressor = RandomForestRegressor(criterion='squared_error', max_depth=20, max_features='log2', n_estimators=300)
-            self.RandForRegressor.fit(self.x_train,self.y_train)
+            print('Load tuned Random Forest Regressor')
+            # load f
+            with open('randomForestModelTuned.pkl', 'rb') as f:
+                self.RandForRegressor = pickle.load(f)
             print('RMSE: ',mean_squared_error(self.RandForRegressor.predict(self.x_test),self.y_test,squared=False))
             print('R2 score: ',r2_score(self.RandForRegressor.predict(self.x_test),self.y_test))
+            # self.RandForRegressor = RandomForestRegressor(criterion='squared_error', 
+            #                                               max_depth=20,
+            #                                               max_features='log2', 
+            #                                               n_estimators=300,
+            #                                               min_samples_leaf=3) #changing min_samples_leaf from 1 to 3, as increasing this will reduce overfitting       
     def multi_layer_perceptron(self):
         pass
     def keras_regressor_analysis(self):
