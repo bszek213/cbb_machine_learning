@@ -19,6 +19,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sys import argv
 from sklearn.metrics import mean_squared_error, r2_score
+# from sklearn.model_selection import cross_val_score, KFold
+import pickle
 class cbb_regressor():
     def __init__(self):
         print('initialize class cbb_regressor')
@@ -123,30 +125,53 @@ class cbb_regressor():
         plt.close()
     def random_forest_analysis(self):
         if argv[1] == 'tune':
-            #RANDOM FOREST
+            #RANDOM FOREST REGRESSOR
             RandForclass = RandomForestRegressor()
+            #Use the number of features as a stopping criterion for depth
             rows, cols = self.x_train.shape
+            #square root of the total number of features is a good limit
+            # cols = int(np.sqrt(cols))
+            #parameters to tune
+            #increasing min_samples_leaf, this will reduce overfitting
             Rand_perm = {
                 'criterion' : ["squared_error", "poisson"], #absolute_error - takes forever to run
-                'n_estimators': range(100,500,100),
+                'n_estimators': range(300,500,100),
                 # 'min_samples_split': np.arange(2, 5, 1, dtype=int),
                 'max_features' : [1, 'sqrt', 'log2'],
-                'max_depth': np.arange(3,cols,1)
+                'max_depth': np.arange(2,cols,1),
+                'min_samples_leaf': np.arange(1,3,1)
                 }
-            #['accuracy', 'adjusted_mutual_info_score', 'adjusted_rand_score', 'average_precision', 'balanced_accuracy', 'completeness_score', 'explained_variance', 'f1', 'f1_macro', 'f1_micro', 'f1_samples', 'f1_weighted', 'fowlkes_mallows_score', 'homogeneity_score', 'jaccard', 'jaccard_macro', 'jaccard_micro', 'jaccard_samples', 'jaccard_weighted', 'matthews_corrcoef', 'max_error', 'mutual_info_score', 'neg_brier_score', 'neg_log_loss', 'neg_mean_absolute_error', 'neg_mean_absolute_percentage_error', 'neg_mean_gamma_deviance', 'neg_mean_poisson_deviance', 'neg_mean_squared_error', 'neg_mean_squared_log_error', 'neg_median_absolute_error', 'neg_root_mean_squared_error', 'normalized_mutual_info_score', 'precision', 'precision_macro', 'precision_micro', 'precision_samples', 'precision_weighted', 'r2', 'rand_score', 'recall', 'recall_macro', 'recall_micro', 'recall_samples', 'recall_weighted', 'roc_auc', 'roc_auc_ovo', 'roc_auc_ovo_weighted', 'roc_auc_ovr', 'roc_auc_ovr_weighted', 'top_k_accuracy', 'v_measure_score']
-            clf_rand = GridSearchCV(RandForclass, Rand_perm, scoring=['neg_root_mean_squared_error','explained_variance'],
+            #['accuracy', 'adjusted_mutual_info_score', 'adjusted_rand_score', 
+            # average_precision', 'balanced_accuracy', 'completeness_score', 'explained_variance', 
+            # 'f1', 'f1_macro', 'f1_micro', 'f1_samples', 'f1_weighted', 'fowlkes_mallows_score', 
+            # 'homogeneity_score', 'jaccard', 'jaccard_macro', 'jaccard_micro', 'jaccard_samples', 
+            # 'jaccard_weighted', 'matthews_corrcoef', 'max_error', 'mutual_info_score', 'neg_brier_score',
+            # 'neg_log_loss', 'neg_mean_absolute_error', 'neg_mean_absolute_percentage_error', 
+            # 'neg_mean_gamma_deviance', 'neg_mean_poisson_deviance', 'neg_mean_squared_error', 
+            # 'neg_mean_squared_log_error', 'neg_median_absolute_error', 'neg_root_mean_squared_error', 
+            # 'normalized_mutual_info_score', 'precision', 'precision_macro', 'precision_micro', 'precision_samples', 'precision_weighted', 'r2', 'rand_score', 'recall', 'recall_macro', 'recall_micro', 'recall_samples', 'recall_weighted', 'roc_auc', 'roc_auc_ovo', 'roc_auc_ovo_weighted', 'roc_auc_ovr', 'roc_auc_ovr_weighted', 'top_k_accuracy', 'v_measure_score']
+            clf_rand = GridSearchCV(RandForclass, Rand_perm, 
+                                scoring=['neg_root_mean_squared_error','explained_variance'],
+                                cv=10,
                                refit='neg_root_mean_squared_error',verbose=4, n_jobs=-1)
-            search_rand = clf_rand.fit(self.x_train,self.y_train)
-            #TODO: Write best params to file
-            #with open('data.yml', 'w') as outfile:
-                # yaml.dump(data, outfile, default_flow_style=False)
+            search_rand = clf_rand.fit(self.x_train,self.y_train)# save
+            #Write fitted and tuned model to file
+            with open('randomForestModelTuned.pkl','wb') as f:
+                pickle.dump(search_rand,f)
             print('RandomForestRegressor - best params: ',search_rand.best_params_)
         else:
-            print('fit to tuned Random Forest Regressor')
-            self.RandForRegressor = RandomForestRegressor(criterion='squared_error', max_depth=20, max_features='log2', n_estimators=300)
-            self.RandForRegressor.fit(self.x_train,self.y_train)
+            print('Load tuned Random Forest Regressor')
+            # load f
+            with open('randomForestModelTuned.pkl', 'rb') as f:
+                self.RandForRegressor = pickle.load(f)
+            print(f'Current RandomForestRegressor Parameters: {self.RandForRegressor.best_params_}')
             print('RMSE: ',mean_squared_error(self.RandForRegressor.predict(self.x_test),self.y_test,squared=False))
             print('R2 score: ',r2_score(self.RandForRegressor.predict(self.x_test),self.y_test))
+            # self.RandForRegressor = RandomForestRegressor(criterion='squared_error', 
+            #                                               max_depth=20,
+            #                                               max_features='log2', 
+            #                                               n_estimators=300,
+            #                                               min_samples_leaf=3)       
     def multi_layer_perceptron(self):
         pass
     def keras_regressor_analysis(self):
@@ -251,7 +276,7 @@ class cbb_regressor():
                 print(f'The error: {e}')
                 print(f'{team_1} or {team_2} data could not be found. check spelling or internet connection')
     def feature_importances_random_forest(self):
-        importances = self.RandForRegressor.feature_importances_
+        importances = self.RandForRegressor.best_estimator_.feature_importances_
         indices = np.argsort(importances)
         plt.figure()
         plt.title('Feature Importances Random Forest')
