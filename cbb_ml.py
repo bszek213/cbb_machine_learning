@@ -21,6 +21,7 @@ from sys import argv
 from sklearn.metrics import mean_squared_error, r2_score
 # from sklearn.model_selection import cross_val_score, KFold
 import pickle
+import joblib
 class cbb_regressor():
     def __init__(self):
         print('initialize class cbb_regressor')
@@ -156,14 +157,16 @@ class cbb_regressor():
                                refit='neg_root_mean_squared_error',verbose=4, n_jobs=-1)
             search_rand = clf_rand.fit(self.x_train,self.y_train)# save
             #Write fitted and tuned model to file
-            with open('randomForestModelTuned.pkl','wb') as f:
-                pickle.dump(search_rand,f)
+            # with open('randomForestModelTuned.pkl','wb') as f:
+            #     pickle.dump(search_rand,f)
+            joblib.dump(clf_rand, "./randomForestModelTuned.joblib", compress=9)
             print('RandomForestRegressor - best params: ',search_rand.best_params_)
         else:
             print('Load tuned Random Forest Regressor')
-            # load f
-            with open('randomForestModelTuned.pkl', 'rb') as f:
-                self.RandForRegressor = pickle.load(f)
+            # load RandomForestModel
+            # with open('randomForestModelTuned.pkl', 'rb') as f:
+            #     self.RandForRegressor = pickle.load(f)
+            self.RandForRegressor=joblib.load("./randomForestModelTuned.joblib")
             print(f'Current RandomForestRegressor Parameters: {self.RandForRegressor.best_params_}')
             print('RMSE: ',mean_squared_error(self.RandForRegressor.predict(self.x_test),self.y_test,squared=False))
             print('R2 score: ',r2_score(self.RandForRegressor.predict(self.x_test),self.y_test))
