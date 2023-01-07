@@ -22,6 +22,8 @@ from sklearn.metrics import mean_squared_error, r2_score
 # from sklearn.model_selection import cross_val_score, KFold
 import pickle
 import joblib
+import sys
+import os
 class cbb_regressor():
     def __init__(self):
         print('initialize class cbb_regressor')
@@ -292,7 +294,13 @@ class cbb_regressor():
                 self.visualization(np.mean(num_pts_score_team_1),np.mean(num_pts_score_team_2))
             except Exception as e:
                 print(f'The error: {e}')
-                print(f'{team_1} or {team_2} data could not be found. check spelling or internet connection')
+                exc_type, exc_obj, exc_tb = sys.exc_info()
+                fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+                print(exc_type,' File with the error: ', fname, ' Line number with error: ',exc_tb.tb_lineno)
+                if exc_tb.tb_lineno == 204:
+                    print(f'{team_1} data could not be found. check spelling or internet connection. Some teams do not have data on SportsRerference')
+                elif exc_tb.tb_lineno == 207:
+                    print(f'{team_2} data could not be found. check spelling or internet connection. Some teams do not have data on SportsRerference')
     def feature_importances_random_forest(self):
         importances = self.RandForRegressor.best_estimator_.feature_importances_
         indices = np.argsort(importances)
