@@ -79,7 +79,15 @@ class cbb_regressor():
         print('len data: ', len(self.all_data))
         self.all_data = self.all_data.drop_duplicates(keep='last')
         print(f'length of data after duplicates are dropped: {len(self.all_data)}')
+    def delete_opp(self):
+        """
+        Drop any opponent data, as it may not be helpful when coming to prediction. Hard to estimate with running average
+        """
+        for col in self.all_data.columns:
+            if 'opp' in col:
+                self.all_data.drop(columns=col,inplace=True)
     def split(self):
+        self.delete_opp()
         for col in self.all_data.columns:
             if 'Unnamed' in col:
                 self.all_data.drop(columns=col,inplace=True)
@@ -155,11 +163,12 @@ class cbb_regressor():
                                 scoring=['neg_root_mean_squared_error','explained_variance'],
                                 cv=10,
                                refit='neg_root_mean_squared_error',verbose=4, n_jobs=-1)
-            search_rand = clf_rand.fit(self.x_train,self.y_train)# save
+            #save
+            search_rand = clf_rand.fit(self.x_train,self.y_train)
             #Write fitted and tuned model to file
             # with open('randomForestModelTuned.pkl','wb') as f:
             #     pickle.dump(search_rand,f)
-            joblib.dump(clf_rand, "./randomForestModelTuned.joblib", compress=9)
+            joblib.dump(search_rand, "./randomForestModelTuned.joblib", compress=9)
             print('RandomForestRegressor - best params: ',search_rand.best_params_)
         else:
             print('Load tuned Random Forest Regressor')
@@ -205,6 +214,12 @@ class cbb_regressor():
                 self.pts_team_2 = team_2_df2023['pts'].astype(float)
                 self.team_2_name = team_2
                 #Remove pts and game result
+                for col in team_1_df2023.columns:
+                    if 'opp' in col:
+                        team_1_df2023.drop(columns=col,inplace=True)
+                for col in team_2_df2023.columns:
+                    if 'opp' in col:
+                        team_2_df2023.drop(columns=col,inplace=True)
                 team_1_df2023.drop(columns=['game_result','pts'],inplace=True)
                 team_2_df2023.drop(columns=['game_result','pts'],inplace=True)
                 #Drop the correlated features
