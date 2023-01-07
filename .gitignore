@@ -5,8 +5,9 @@ __pycache__/
 # key file
 key.txt
 errors.log
-#pickled data
+#Compression
 randomForestModelTuned.pkl
+randomForestModelTuned.joblib
 
 # C extensions
 *.so
