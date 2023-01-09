@@ -10,7 +10,7 @@ from os.path import join, exists
 import yaml
 from tqdm import tqdm
 from time import sleep
-from pandas import DataFrame, concat, read_csv
+from pandas import DataFrame, concat, read_csv, isnull
 import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.model_selection import GridSearchCV
@@ -22,6 +22,8 @@ from sklearn.metrics import mean_squared_error, r2_score
 # from sklearn.model_selection import cross_val_score, KFold
 import pickle
 import joblib
+import sys
+import os
 class cbb_regressor():
     def __init__(self):
         print('initialize class cbb_regressor')
@@ -172,10 +174,11 @@ class cbb_regressor():
             print('RandomForestRegressor - best params: ',search_rand.best_params_)
         else:
             print('Load tuned Random Forest Regressor')
-            # load RandomForestModel
+            # load RandomForestModel    
             # with open('randomForestModelTuned.pkl', 'rb') as f:
             #     self.RandForRegressor = pickle.load(f)
             self.RandForRegressor=joblib.load("./randomForestModelTuned.joblib")
+            joblib.dump(self.RandForRegressor, "clf.jbl.gz")
             print(f'Current RandomForestRegressor Parameters: {self.RandForRegressor.best_params_}')
             print('RMSE: ',mean_squared_error(self.RandForRegressor.predict(self.x_test),self.y_test,squared=False))
             print('R2 score: ',r2_score(self.RandForRegressor.predict(self.x_test),self.y_test))
@@ -205,8 +208,10 @@ class cbb_regressor():
                 team_2_df2023 = cbb_web_scraper.html_to_df_web_scrape_cbb(basic,adv,team_2.lower(),year)
                 #Remove empty cells
                 team_1_df2023['pts'].replace('', np.nan, inplace=True)
+                team_1_df2023.replace('', np.nan, inplace=True)
                 team_1_df2023.dropna(inplace=True)
                 team_2_df2023['pts'].replace('', np.nan, inplace=True)
+                team_2_df2023.replace('', np.nan, inplace=True)
                 team_2_df2023.dropna(inplace=True)
                 #Save series of pts for visualizations
                 self.pts_team_1 = team_1_df2023['pts'].astype(float)
@@ -253,10 +258,6 @@ class cbb_regressor():
                     data2 = team_2_df2023.rolling(ma).median()
                     data1_mean = team_1_df2023.rolling(ma).mean()
                     data2_mean = team_2_df2023.rolling(ma).mean()
-                    # print(data1.iloc[-1:])
-                    # print(data2.iloc[-1:])
-                    # print(data1_mean.iloc[-1:])
-                    # print(data2_mean.iloc[-1:])
                     team_1_predict = self.RandForRegressor.predict(data1.iloc[-1:])
                     team_2_predict = self.RandForRegressor.predict(data2.iloc[-1:])
                     team_1_predict_mean = self.RandForRegressor.predict(data1_mean.iloc[-1:])
@@ -292,7 +293,13 @@ class cbb_regressor():
                 self.visualization(np.mean(num_pts_score_team_1),np.mean(num_pts_score_team_2))
             except Exception as e:
                 print(f'The error: {e}')
-                print(f'{team_1} or {team_2} data could not be found. check spelling or internet connection')
+                exc_type, exc_obj, exc_tb = sys.exc_info()
+                fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+                print(exc_type,' File with the error: ', fname, ' Line number with error: ',exc_tb.tb_lineno)
+                if exc_tb.tb_lineno == 205:
+                    print(f'{team_1} data could not be found. check spelling or internet connection. Some teams do not have data on SportsReference')
+                elif exc_tb.tb_lineno == 208:
+                    print(f'{team_2} data could not be found. check spelling or internet connection. Some teams do not have data on SportsReference')
     def feature_importances_random_forest(self):
         importances = self.RandForRegressor.best_estimator_.feature_importances_
         indices = np.argsort(importances)
