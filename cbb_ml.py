@@ -178,7 +178,6 @@ class cbb_regressor():
             # with open('randomForestModelTuned.pkl', 'rb') as f:
             #     self.RandForRegressor = pickle.load(f)
             self.RandForRegressor=joblib.load("./randomForestModelTuned.joblib")
-            joblib.dump(self.RandForRegressor, "clf.jbl.gz")
             print(f'Current RandomForestRegressor Parameters: {self.RandForRegressor.best_params_}')
             print('RMSE: ',mean_squared_error(self.RandForRegressor.predict(self.x_test),self.y_test,squared=False))
             print('R2 score: ',r2_score(self.RandForRegressor.predict(self.x_test),self.y_test))
