@@ -242,7 +242,8 @@ class cbb_regressor():
                 #     if 'Unnamed' in col:
                 #         team_2_df2023.drop(columns=col,inplace=True)
                 #Try to find the moving averages that work
-                ma_range = np.arange(2,len(team_2_df2023)-2,1)
+                # ma_range = np.arange(2,len(team_2_df2023)-2,1)
+                ma_range = np.arange(2,9,1) #2 was the most correct value for mean and 8 was the best for the median; chose 9 for tiebreaking
                 team_1_count = 0
                 team_2_count = 0
                 team_1_count_mean = 0
