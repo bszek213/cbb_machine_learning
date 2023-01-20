@@ -81,6 +81,9 @@ class cbb_regressor():
         print('len data: ', len(self.all_data))
         self.all_data = self.all_data.drop_duplicates(keep='last')
         print(f'length of data after duplicates are dropped: {len(self.all_data)}')
+    def convert_to_float(self):
+        for col in self.all_data.columns:
+            self.all_data[col] = self.all_data[col].astype(float)
     def delete_opp(self):
         """
         Drop any opponent data, as it may not be helpful when coming to prediction. Hard to estimate with running average
@@ -93,6 +96,7 @@ class cbb_regressor():
         for col in self.all_data.columns:
             if 'Unnamed' in col:
                 self.all_data.drop(columns=col,inplace=True)
+        self.convert_to_float()
         self.y = self.all_data['pts']
         self.x = self.all_data.drop(columns=['pts','game_result'])
         self.pre_process()
@@ -242,7 +246,7 @@ class cbb_regressor():
                 #         team_2_df2023.drop(columns=col,inplace=True)
                 #Try to find the moving averages that work
                 # ma_range = np.arange(2,len(team_2_df2023)-2,1)
-                ma_range = np.arange(2,9,1) #2 was the most correct value for mean and 8 was the best for the median; chose 9 for tiebreaking
+                ma_range = np.arange(2,5,1) #2 was the most correct value for mean and 8 was the best for the median; chose 9 for tiebreaking
                 team_1_count = 0
                 team_2_count = 0
                 team_1_count_mean = 0
@@ -256,8 +260,10 @@ class cbb_regressor():
                 for ma in tqdm(ma_range):
                     data1 = team_1_df2023.rolling(ma).median()
                     data2 = team_2_df2023.rolling(ma).median()
-                    data1_mean = team_1_df2023.rolling(ma).mean()
-                    data2_mean = team_2_df2023.rolling(ma).mean()
+                    # data1_mean_old = team_1_df2023.rolling(ma).mean()
+                    # data2_mean_old = team_2_df2023.rolling(ma).mean()
+                    data1_mean = team_1_df2023.ewm(span=ma,min_periods=ma-1).mean()
+                    data2_mean = team_2_df2023.ewm(span=ma,min_periods=ma-1).mean()
                     team_1_predict = self.RandForRegressor.predict(data1.iloc[-1:])
                     team_2_predict = self.RandForRegressor.predict(data2.iloc[-1:])
                     team_1_predict_mean = self.RandForRegressor.predict(data1_mean.iloc[-1:])
