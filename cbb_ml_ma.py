@@ -24,6 +24,7 @@ import pickle
 import joblib
 import sys
 import os
+# from sklearn.metrics import mean_absolute_percentage_error
 class cbbRegressorEwm():
     def __init__(self):
         print('initialize class cbbRegressorEwm')
@@ -96,7 +97,7 @@ class cbbRegressorEwm():
         to_drop = [column for column in upper.columns if any(upper[column] >= 0.85)]
         self.drop_cols = to_drop
         self.x_no_corr = self.x.drop(columns=to_drop)
-        self.drop_cols.append('opp_pts') #may use this in the future as a feature
+        # self.drop_cols.append('opp_pts') #may use this in the future as a feature
         cols = self.x_no_corr.columns
         print(f'Columns dropped: {self.drop_cols}')
         #Drop samples that are outliers 
@@ -169,6 +170,7 @@ class cbbRegressorEwm():
             print(f'Current RandomForestRegressor Parameters: {self.RandForRegressor.best_params_}')
             print('RMSE: ',mean_squared_error(self.RandForRegressor.predict(self.x_test),self.y_test,squared=False))
             print('R2 score: ',r2_score(self.RandForRegressor.predict(self.x_test),self.y_test))
+            self.rmse = mean_squared_error(self.RandForRegressor.predict(self.x_test),self.y_test,squared=False)
     def predict_two_teams(self):
         while True:
             try:
@@ -178,8 +180,7 @@ class cbbRegressorEwm():
                 team_2 = input('team_2: ')
                 #Team 1 data - I hate how I am gathering this
                 final_list = []
-                year_list = [2023,2022]
-                for year in year_list:
+                for year in self.years:
                     basic = 'https://www.sports-reference.com/cbb/schools/' + team_1 + '/' + str(year) + '-gamelogs.html'
                     adv = 'https://www.sports-reference.com/cbb/schools/' + team_1 + '/' + str(year) + '-gamelogs-advanced.html'
                     df_inst = cbb_web_scraper.html_to_df_web_scrape_cbb(basic,adv,team_1,year)
@@ -188,44 +189,66 @@ class cbbRegressorEwm():
                     final_list.append(df_inst)
                     sleep(5)
                 team_1_df = concat(final_list)
-                for col in team_1_df.columns:
-                        if col != 'pts':
-                            team_1_df[col] = team_1_df[col].ewm(span=3,ignore_na=True).mean()
                 #Team 2 data - I hate how I am gathering this
                 final_list = []
                 for year in self.years:
-                    basic = 'https://www.sports-reference.com/cbb/schools/' + team_1 + '/' + str(year) + '-gamelogs.html'
-                    adv = 'https://www.sports-reference.com/cbb/schools/' + team_1 + '/' + str(year) + '-gamelogs-advanced.html'
+                    basic = 'https://www.sports-reference.com/cbb/schools/' + team_2 + '/' + str(year) + '-gamelogs.html'
+                    adv = 'https://www.sports-reference.com/cbb/schools/' + team_2 + '/' + str(year) + '-gamelogs-advanced.html'
                     df_inst = cbb_web_scraper.html_to_df_web_scrape_cbb(basic,adv,team_2,year)
                     df_inst['pts'].replace('', np.nan, inplace=True)
                     df_inst.dropna(inplace=True)
                     final_list.append(df_inst)
                     sleep(5)
                 team_2_df = concat(final_list)
-                for col in team_2_df.columns:
-                        if col != 'pts':
-                            team_2_df[col] = team_2_df[col].ewm(span=3,ignore_na=True).mean()
                 #Drop the correlated features
                 team_1_df.drop(columns=self.drop_cols, inplace=True)
                 team_2_df.drop(columns=self.drop_cols, inplace=True)
                 team_1_df.drop(columns=['game_result','pts'],inplace=True)
                 team_2_df.drop(columns=['game_result','pts'],inplace=True)
+                #Perform EWM
+                error_team_1 = []
+                for col in team_1_df.columns:
+                    team_1_df[col].replace('', np.nan, inplace=True)
+                    error_team_1.append(self.mape_diff_raw_ewm(team_1_df[col]))
+                    team_1_df[col] = team_1_df[col].ewm(span=3,ignore_na=True).mean()
+                error_team_2 = []
+                for col in team_2_df.columns:
+                    team_2_df[col].replace('', np.nan, inplace=True)
+                    error_team_2.append(self.mape_diff_raw_ewm(team_2_df[col]))
+                    team_2_df[col] = team_2_df[col].ewm(span=3,ignore_na=True).mean()
                 #Predict on the final value in dataframe columns
                 team_1_predict_mean = self.RandForRegressor.predict(team_1_df.iloc[-1:])
                 team_2_predict_mean = self.RandForRegressor.predict(team_2_df.iloc[-1:])
                 print('===============================================================')
                 print(f'Outcomes with EWM')
-                print(f'{team_1}: {team_1_predict_mean[0]}')
-                print(f'{team_2}: {team_2_predict_mean[0]}')
+                print(f'{team_1}: {team_1_predict_mean[0]} points')
+                print(f'{team_2}: {team_2_predict_mean[0]} points')
+                print('===============================================================')
                 if team_1_predict_mean[0] > team_2_predict_mean[0]:
-                    print(f'{team_1} wins')
-                else:
-                    print(f'{team_2} wins')
+                    print(f'===={team_1} wins====')
+                elif team_1_predict_mean[0] < team_2_predict_mean[0]:
+                    print(f'===={team_2} wins====')
+                if abs(team_1_predict_mean[0] - team_2_predict_mean[0]) < self.rmse:
+                    print('The point differential is less than the model RMSE, be cautious.')
+                print('===============================================================')
+                print(f'{team_1} variability: {min(error_team_1)} | {max(error_team_1)}')
+                print(f'{team_2} variability: {min(error_team_2)} | {max(error_team_2)}')
                 print('===============================================================')
                 # team_1_df = self.all_data[self.all_data['team'].str.contains(team_1)]
                 # team_2_df = self.all_data[self.all_data['team'].str.contains(team_2)]
             except Exception as e:
                 print(f'The error: {e}')
+    def mape_diff_raw_ewm(self,team_df):
+        """
+        estimate how much variability is present between the raw features and the ewm features.
+        Using r2 as a proxy for how close the ewm line follows the raw data
+        """
+        try:
+            team = team_df.ewm(span=3,ignore_na=True).mean()
+            return r2_score(team_df,team.dropna())
+        except:
+            print('Input contained NaNs. Fix this later. For now return NaN')
+            return np.nan
     def feature_importances_random_forest(self):
         importances = self.RandForRegressor.best_estimator_.feature_importances_
         indices = np.argsort(importances)
