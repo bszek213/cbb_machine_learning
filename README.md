@@ -1,6 +1,7 @@
 # College Basketball Game Predictions
 
-Machine learning that predicts the outcome of any Division I college basketball game. Data are from 2015 - 2023 seasons.
+Machine learning that predicts the outcome of any Division I college basketball game. Data are from 2015 - 2023 seasons. 
+Currently the prediction accuracy is between 63-66% on future game outcomes.
 
 ## Usage
 
