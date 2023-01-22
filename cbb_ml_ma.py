@@ -130,7 +130,7 @@ class cbbRegressorEwm():
                 self.all_data.drop(columns=col,inplace=True)
         self.convert_to_float()
         self.y = self.all_data['pts']
-        self.x = self.all_data.drop(columns=['pts','team','opp_pts'])
+        self.x = self.all_data.drop(columns=['pts','team'])
         self.pre_process()
         #Dropna and remove all data from subsequent y data
         real_values = ~self.x_no_corr.isna().any(axis=1)
