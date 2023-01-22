@@ -50,8 +50,8 @@ class cbbRegressorEwm():
             team_names = sorted(all_teams)
             for abv in tqdm(team_names):
                 final_list = []
-                for year in tqdm(year_list):
-                    try:
+                try:
+                    for year in year_list:
                         print() #tqdm things
                         print(f'current team: {abv}, year: {year}')
                         basic = 'https://www.sports-reference.com/cbb/schools/' + abv + '/' + str(year) + '-gamelogs.html'
@@ -60,31 +60,35 @@ class cbbRegressorEwm():
                         df_inst['pts'].replace('', np.nan, inplace=True)
                         df_inst.dropna(inplace=True)
                         final_list.append(df_inst)
-                    except Exception as e:
-                        print(e)
-                        print(f'{abv} data are not available')
-                    sleep(5) #I get get banned for a small period of time if I do not do this
-                final_data = concat(final_list)
-                final_data.drop(columns='game_result',inplace=True)
-                #Perform EWM on all data
-                final_data = final_data.ewm(span=12,ignore_na=True).mean() #this is the arbitrary part: 12 games = half the season
-                final_data['team'] = abv #I love how in python the data size is just "figured" out...this is such bad coding
-                #Save data to file
-                if exists(join(getcwd(),'all_data_regressor.csv')):
-                    self.all_data = read_csv(join(getcwd(),'all_data_regressor.csv'))  
-                self.all_data = concat([self.all_data, final_data.dropna()])
-                if not exists(join(getcwd(),'all_data_regressor.csv')):
+                        sleep(5) #I get get banned for a small period of time if I do not do this
+                    final_data = concat(final_list)
+                    final_data.drop(columns='game_result',inplace=True)
+                    #Perform EWM on all data except for pts
+                    for col in final_data.columns:
+                        if col != 'pts':
+                            final_data[col] = final_data[col].ewm(span=3,ignore_na=True).mean() #this is the arbitrary part: 3 games since the best outcomes from the old analysis were between 2-4 games
+                    final_data['team'] = abv #I love how in python the data size is just "figured" out...this is such bad coding
+                    #Save data to file
+                    if exists(join(getcwd(),'all_data_regressor.csv')):
+                        self.all_data = read_csv(join(getcwd(),'all_data_regressor.csv'))  
+                    self.all_data = concat([self.all_data, final_data.dropna()])
+                    if not exists(join(getcwd(),'all_data_regressor.csv')):
+                        self.all_data.to_csv(join(getcwd(),'all_data_regressor.csv'),index=False)
                     self.all_data.to_csv(join(getcwd(),'all_data_regressor.csv'),index=False)
-                self.all_data.to_csv(join(getcwd(),'all_data_regressor.csv'),index=False)
+                except Exception as e:
+                    print(e)
+                    print(f'{abv} data are not available')
             #Write years to file
             with open(join(getcwd(),'year_count.yaml'), 'w') as write_file:
+                year_counts = {'year':year_list}
                 yaml.dump(year_counts, write_file)
                 print(f'writing {year} to yaml file')
         else:
             self.all_data = read_csv(join(getcwd(),'all_data_regressor.csv'))
     def convert_to_float(self):
         for col in self.all_data.columns:
-            self.all_data[col] = self.all_data[col].astype(float)
+            if 'team' not in col:
+                self.all_data[col] = self.all_data[col].astype(float)
     def pre_process(self):
         # Remove features with a correlation coef greater than 0.85
         corr_matrix = np.abs(self.x.astype(float).corr())
@@ -92,6 +96,7 @@ class cbbRegressorEwm():
         to_drop = [column for column in upper.columns if any(upper[column] >= 0.85)]
         self.drop_cols = to_drop
         self.x_no_corr = self.x.drop(columns=to_drop)
+        self.drop_cols.append('opp_pts') #may use this in the future as a feature
         cols = self.x_no_corr.columns
         print(f'Columns dropped: {self.drop_cols}')
         #Drop samples that are outliers 
@@ -124,7 +129,7 @@ class cbbRegressorEwm():
                 self.all_data.drop(columns=col,inplace=True)
         self.convert_to_float()
         self.y = self.all_data['pts']
-        self.x = self.all_data.drop(columns=['pts','team'])
+        self.x = self.all_data.drop(columns=['pts','team','opp_pts'])
         self.pre_process()
         #Dropna and remove all data from subsequent y data
         real_values = ~self.x_no_corr.isna().any(axis=1)
@@ -173,7 +178,8 @@ class cbbRegressorEwm():
                 team_2 = input('team_2: ')
                 #Team 1 data - I hate how I am gathering this
                 final_list = []
-                for year in self.years:
+                year_list = [2023,2022]
+                for year in year_list:
                     basic = 'https://www.sports-reference.com/cbb/schools/' + team_1 + '/' + str(year) + '-gamelogs.html'
                     adv = 'https://www.sports-reference.com/cbb/schools/' + team_1 + '/' + str(year) + '-gamelogs-advanced.html'
                     df_inst = cbb_web_scraper.html_to_df_web_scrape_cbb(basic,adv,team_1,year)
@@ -182,7 +188,9 @@ class cbbRegressorEwm():
                     final_list.append(df_inst)
                     sleep(5)
                 team_1_df = concat(final_list)
-                team_1_df.drop(columns='game_result',inplace=True)
+                for col in team_1_df.columns:
+                        if col != 'pts':
+                            team_1_df[col] = team_1_df[col].ewm(span=3,ignore_na=True).mean()
                 #Team 2 data - I hate how I am gathering this
                 final_list = []
                 for year in self.years:
@@ -194,17 +202,46 @@ class cbbRegressorEwm():
                     final_list.append(df_inst)
                     sleep(5)
                 team_2_df = concat(final_list)
-                team_2_df.drop(columns='game_result',inplace=True)
-                
+                for col in team_2_df.columns:
+                        if col != 'pts':
+                            team_2_df[col] = team_2_df[col].ewm(span=3,ignore_na=True).mean()
+                #Drop the correlated features
+                team_1_df.drop(columns=self.drop_cols, inplace=True)
+                team_2_df.drop(columns=self.drop_cols, inplace=True)
+                team_1_df.drop(columns=['game_result','pts'],inplace=True)
+                team_2_df.drop(columns=['game_result','pts'],inplace=True)
+                #Predict on the final value in dataframe columns
+                team_1_predict_mean = self.RandForRegressor.predict(team_1_df.iloc[-1:])
+                team_2_predict_mean = self.RandForRegressor.predict(team_2_df.iloc[-1:])
+                print('===============================================================')
+                print(f'Outcomes with EWM')
+                print(f'{team_1}: {team_1_predict_mean[0]}')
+                print(f'{team_2}: {team_2_predict_mean[0]}')
+                if team_1_predict_mean[0] > team_2_predict_mean[0]:
+                    print(f'{team_1} wins')
+                else:
+                    print(f'{team_2} wins')
+                print('===============================================================')
                 # team_1_df = self.all_data[self.all_data['team'].str.contains(team_1)]
                 # team_2_df = self.all_data[self.all_data['team'].str.contains(team_2)]
             except Exception as e:
                 print(f'The error: {e}')
+    def feature_importances_random_forest(self):
+        importances = self.RandForRegressor.best_estimator_.feature_importances_
+        indices = np.argsort(importances)
+        plt.figure()
+        plt.title('Feature Importances Random Forest')
+        plt.barh(range(len(indices)), importances[indices], color='k', align='center')
+        plt.yticks(range(len(indices)), [self.x_test.columns[i] for i in indices])
+        plt.xlabel('Relative Importance')
+        plt.tight_layout()
+        plt.savefig('feature_importance_random_forest.png',dpi=300)
     def run_analysis(self):
         self.get_teams()
         self.split()
         self.random_forest_analysis()
         self.predict_two_teams()
+        self.feature_importances_random_forest()
 def main():
     cbbRegressorEwm().run_analysis()
 if __name__ == '__main__':
