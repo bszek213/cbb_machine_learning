@@ -24,13 +24,14 @@ import pickle
 import joblib
 import sys
 import os
+from scipy.stats import variation
 class cbb_regressor():
     def __init__(self):
         print('initialize class cbb_regressor')
         self.all_data = DataFrame()
     def get_teams(self):
         year_list_find = []
-        year_list = [2023,2022,2021,2019,2018,2017,2016,2015] #,2014,2013,2012,2011,2010
+        year_list = [2023,2022,2021,2019,2018,2017,2016,2015,2014,2013,2012] #,2014,2013,2012,2011,2010
         if exists(join(getcwd(),'year_count.yaml')):
             with open(join(getcwd(),'year_count.yaml')) as file:
                 year_counts = yaml.load(file, Loader=yaml.FullLoader)
@@ -53,7 +54,6 @@ class cbb_regressor():
                     try:
                         print() #tqdm things
                         print(f'current team: {abv}, year: {year}')
-                        # https://www.basketball-reference.com/teams/BOS/2023/gamelog/
                         basic = 'https://www.sports-reference.com/cbb/schools/' + abv + '/' + str(self.year_store) + '-gamelogs.html'
                         adv = 'https://www.sports-reference.com/cbb/schools/' + abv + '/' + str(self.year_store) + '-gamelogs-advanced.html'
                         df_inst = cbb_web_scraper.html_to_df_web_scrape_cbb(basic,adv,abv,self.year_store)
@@ -63,7 +63,7 @@ class cbb_regressor():
                     except Exception as e:
                         print(e)
                         print(f'{abv} data are not available')
-                    sleep(5) #I get get banned for a small period of time if I do not do this
+                    sleep(4) #I get get banned for a small period of time if I do not do this
                 final_data = concat(final_list)
                 if exists(join(getcwd(),'all_data_regressor.csv')):
                     self.all_data = read_csv(join(getcwd(),'all_data_regressor.csv'))  
@@ -109,19 +109,19 @@ class cbb_regressor():
         # Remove features with a correlation coef greater than 0.85
         corr_matrix = np.abs(self.x.astype(float).corr())
         upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(np.bool))
-        to_drop = [column for column in upper.columns if any(upper[column] >= 0.85)]
+        to_drop = [column for column in upper.columns if any(upper[column] >= 0.90)]
         self.drop_cols = to_drop
         self.x_no_corr = self.x.drop(columns=to_drop)
         cols = self.x_no_corr.columns
-        print(f'Columns dropped: {self.drop_cols}')
+        print(f'Columns dropped  >= 0.90: {to_drop}')
         #Drop samples that are outliers 
         print(f'old feature dataframe shape before outlier removal: {self.x_no_corr.shape}')
         for col_name in cols:
             Q1 = np.percentile(self.x_no_corr[col_name], 25)
             Q3 = np.percentile(self.x_no_corr[col_name], 75)
             IQR = Q3 - Q1
-            upper = np.where(self.x_no_corr[col_name] >= (Q3+3.0*IQR)) #1.5 is the standard, use two to see if more data helps improve model performance
-            lower = np.where(self.x_no_corr[col_name] <= (Q1-3.0*IQR)) 
+            upper = np.where(self.x_no_corr[col_name] >= (Q3+2.5*IQR)) #1.5 is the standard, use two to see if more data helps improve model performance
+            lower = np.where(self.x_no_corr[col_name] <= (Q1-2.5*IQR)) 
             self.x_no_corr.drop(upper[0], inplace = True)
             self.x_no_corr.drop(lower[0], inplace = True)
             self.y.drop(upper[0], inplace = True)
@@ -176,6 +176,10 @@ class cbb_regressor():
             #     pickle.dump(search_rand,f)
             joblib.dump(search_rand, "./randomForestModelTuned.joblib", compress=9)
             print('RandomForestRegressor - best params: ',search_rand.best_params_)
+            self.RandForRegressor = search_rand
+            self.rmse = mean_squared_error(self.RandForRegressor.predict(self.x_test),self.y_test,squared=False)
+            print('RMSE: ',mean_squared_error(self.RandForRegressor.predict(self.x_test),self.y_test,squared=False))
+            print('R2 score: ',r2_score(self.RandForRegressor.predict(self.x_test),self.y_test))
         else:
             print('Load tuned Random Forest Regressor')
             # load RandomForestModel    
@@ -185,6 +189,7 @@ class cbb_regressor():
             print(f'Current RandomForestRegressor Parameters: {self.RandForRegressor.best_params_}')
             print('RMSE: ',mean_squared_error(self.RandForRegressor.predict(self.x_test),self.y_test,squared=False))
             print('R2 score: ',r2_score(self.RandForRegressor.predict(self.x_test),self.y_test))
+            self.rmse = mean_squared_error(self.RandForRegressor.predict(self.x_test),self.y_test,squared=False)
             # self.RandForRegressor = RandomForestRegressor(criterion='squared_error', 
             #                                               max_depth=20,
             #                                               max_features='log2', 
@@ -257,6 +262,8 @@ class cbb_regressor():
                 team_2_median = []
                 num_pts_score_team_1= []
                 num_pts_score_team_2 = []
+                mean_team_1_var = []
+                mean_team_2_var = []
                 for ma in tqdm(ma_range):
                     data1 = team_1_df2023.rolling(ma).median()
                     data2 = team_2_df2023.rolling(ma).median()
@@ -284,6 +291,9 @@ class cbb_regressor():
                     if team_1_predict_mean < team_2_predict_mean:
                         team_2_count_mean += 1
                         team_2_ma.append(ma)
+                    #check variability
+                    mean_team_1_var.append(np.mean(variation(data1_mean.dropna(), axis=1)))
+                    mean_team_2_var.append(np.mean(variation(data2_mean.dropna(), axis=1)))
                 print('===============================================================')
                 print(f'Outcomes with a rolling median from 2-{len(team_2_df2023)} games')
                 print(f'{team_1}: {team_1_count} | {team_1_median}')
@@ -296,15 +306,18 @@ class cbb_regressor():
                 print(f'{team_1} number of pts score: {np.mean(num_pts_score_team_1)}')
                 print(f'{team_2} number of pts score: {np.mean(num_pts_score_team_2)}')
                 print('===============================================================')
+                print(f'Mean variablity of all features for {team_1}: {mean_team_1_var}')
+                print(f'Mean variablity of all features for {team_2}: {mean_team_2_var}')
+                print('===============================================================')
                 self.visualization(np.mean(num_pts_score_team_1),np.mean(num_pts_score_team_2))
             except Exception as e:
                 print(f'The error: {e}')
                 exc_type, exc_obj, exc_tb = sys.exc_info()
                 fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
                 print(exc_type,' File with the error: ', fname, ' Line number with error: ',exc_tb.tb_lineno)
-                if exc_tb.tb_lineno == 205:
+                if exc_tb.tb_lineno == 216:
                     print(f'{team_1} data could not be found. check spelling or internet connection. Some teams do not have data on SportsReference')
-                elif exc_tb.tb_lineno == 208:
+                elif exc_tb.tb_lineno == 219:
                     print(f'{team_2} data could not be found. check spelling or internet connection. Some teams do not have data on SportsReference')
     def feature_importances_random_forest(self):
         importances = self.RandForRegressor.best_estimator_.feature_importances_

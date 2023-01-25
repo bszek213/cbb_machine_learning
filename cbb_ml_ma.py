@@ -24,6 +24,7 @@ import pickle
 import joblib
 import sys
 import os
+from scipy.stats import variation
 # from sklearn.metrics import mean_absolute_percentage_error
 class cbbRegressorEwm():
     def __init__(self):
@@ -87,8 +88,10 @@ class cbbRegressorEwm():
         else:
             self.all_data = read_csv(join(getcwd(),'all_data_regressor.csv'))
     def convert_to_float(self):
+        
         for col in self.all_data.columns:
             if 'team' not in col:
+                self.all_data[col].replace('', np.nan, inplace=True)
                 self.all_data[col] = self.all_data[col].astype(float)
     def pre_process(self):
         # Remove features with a correlation coef greater than 0.85
@@ -130,8 +133,9 @@ class cbbRegressorEwm():
                 self.all_data.drop(columns=col,inplace=True)
         self.convert_to_float()
         self.y = self.all_data['pts']
-        self.x = self.all_data.drop(columns=['pts','team'])
+        self.x = self.all_data.drop(columns=['pts','team','opp_pts'])
         self.pre_process()
+        self.drop_cols.append('opp_pts')
         #Dropna and remove all data from subsequent y data
         real_values = ~self.x_no_corr.isna().any(axis=1)
         self.x_no_corr.dropna(inplace=True)
@@ -164,6 +168,10 @@ class cbbRegressorEwm():
             #Write fitted and tuned model to file
             joblib.dump(search_rand, "./randomForestModelTuned.joblib", compress=9)
             print('RandomForestRegressor - best params: ',search_rand.best_params_)
+            self.RandForRegressor = search_rand
+            print('RMSE: ',mean_squared_error(self.RandForRegressor.predict(self.x_test),self.y_test,squared=False))
+            print('R2 score: ',r2_score(self.RandForRegressor.predict(self.x_test),self.y_test))
+            self.rmse = mean_squared_error(self.RandForRegressor.predict(self.x_test),self.y_test,squared=False)
         else:
             print('Load tuned Random Forest Regressor')
             self.RandForRegressor=joblib.load("./randomForestModelTuned.joblib")
@@ -234,6 +242,13 @@ class cbbRegressorEwm():
                 print(f'{team_1} variability: {min(error_team_1)} | {max(error_team_1)}')
                 print(f'{team_2} variability: {min(error_team_2)} | {max(error_team_2)}')
                 print('===============================================================')
+                #get variablity of data
+                print(f'Mean variablity of all features for {team_1}: {np.mean(variation(team_1_df, axis=1))}')
+                print(f'Mean variablity of all features for {team_2}: {np.mean(variation(team_2_df, axis=1))}')
+                print('===============================================================')
+                # team_1_variability = []
+                # for col in team_1_df.columns:
+                #     team_1_df[col] = variation() 
                 # team_1_df = self.all_data[self.all_data['team'].str.contains(team_1)]
                 # team_2_df = self.all_data[self.all_data['team'].str.contains(team_2)]
             except Exception as e:
