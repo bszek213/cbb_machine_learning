@@ -302,14 +302,17 @@ class cbb_regressor():
                 print(f'Outcomes with a mean from 2-{len(team_2_df2023)} games')
                 print(f'{team_1}: {team_1_count_mean} | {team_1_ma}')
                 print(f'{team_2}: {team_2_count_mean} | {team_2_ma}')
+                if abs(np.mean(num_pts_score_team_1) - np.mean(num_pts_score_team_2)) < 3:#self.rmse:
+                    print('The point differential is less than the model RMSE, be cautious.')
                 print('===============================================================')
                 print(f'{team_1} number of pts score: {np.mean(num_pts_score_team_1)}')
                 print(f'{team_2} number of pts score: {np.mean(num_pts_score_team_2)}')
                 print('===============================================================')
-                print(f'Mean variablity of all features for {team_1}: {mean_team_1_var}')
-                print(f'Mean variablity of all features for {team_2}: {mean_team_2_var}')
+                print(f'Mean variablity of all features for {team_1}: {np.mean(mean_team_1_var)}')
+                print(f'Mean variablity of all features for {team_2}: {np.mean(mean_team_2_var)}')
                 print('===============================================================')
-                self.visualization(np.mean(num_pts_score_team_1),np.mean(num_pts_score_team_2))
+                if sys.argv[2] == "show":
+                    self.visualization(np.mean(num_pts_score_team_1),np.mean(num_pts_score_team_2))
             except Exception as e:
                 print(f'The error: {e}')
                 exc_type, exc_obj, exc_tb = sys.exc_info()
