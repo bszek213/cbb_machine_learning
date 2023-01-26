@@ -265,24 +265,24 @@ class cbb_regressor():
                 mean_team_1_var = []
                 mean_team_2_var = []
                 for ma in tqdm(ma_range):
-                    data1 = team_1_df2023.rolling(ma).median()
-                    data2 = team_2_df2023.rolling(ma).median()
+                    data1_median = team_1_df2023.rolling(ma).median()
+                    data2_median = team_2_df2023.rolling(ma).median()
                     # data1_mean_old = team_1_df2023.rolling(ma).mean()
                     # data2_mean_old = team_2_df2023.rolling(ma).mean()
                     data1_mean = team_1_df2023.ewm(span=ma,min_periods=ma-1).mean()
                     data2_mean = team_2_df2023.ewm(span=ma,min_periods=ma-1).mean()
-                    team_1_predict = self.RandForRegressor.predict(data1.iloc[-1:])
-                    team_2_predict = self.RandForRegressor.predict(data2.iloc[-1:])
+                    team_1_predict_median = self.RandForRegressor.predict(data1_median.iloc[-1:])
+                    team_2_predict_median = self.RandForRegressor.predict(data2_median.iloc[-1:])
                     team_1_predict_mean = self.RandForRegressor.predict(data1_mean.iloc[-1:])
                     team_2_predict_mean = self.RandForRegressor.predict(data2_mean.iloc[-1:])
-                    num_pts_score_team_1.append(team_1_predict_mean[0])
-                    num_pts_score_team_2.append(team_2_predict_mean[0])
-                    num_pts_score_team_1.append(team_1_predict[0])
-                    num_pts_score_team_2.append(team_2_predict[0])
-                    if team_1_predict > team_2_predict:
+                    # num_pts_score_team_1.append(team_1_predict_mean[0])
+                    # num_pts_score_team_2.append(team_2_predict_mean[0])
+                    num_pts_score_team_1.append(team_1_predict_median[0])
+                    num_pts_score_team_2.append(team_2_predict_median[0])
+                    if team_1_predict_median > team_2_predict_median:
                         team_1_count += 1
                         team_1_median.append(ma)
-                    if team_1_predict < team_2_predict:
+                    if team_1_predict_median < team_2_predict_median:
                         team_2_count += 1
                         team_2_median.append(ma)
                     if team_1_predict_mean > team_2_predict_mean:
@@ -292,8 +292,10 @@ class cbb_regressor():
                         team_2_count_mean += 1
                         team_2_ma.append(ma)
                     #check variability
-                    mean_team_1_var.append(np.mean(variation(data1_mean.dropna(), axis=1)))
-                    mean_team_2_var.append(np.mean(variation(data2_mean.dropna(), axis=1)))
+                    # mean_team_1_var.append(np.mean(variation(data1_mean.dropna(), axis=1)))
+                    # mean_team_2_var.append(np.mean(variation(data2_mean.dropna(), axis=1)))
+                    mean_team_1_var.append(np.mean(data1_mean.dropna().var()))
+                    mean_team_2_var.append(np.mean(data2_mean.dropna().var()))
                 print('===============================================================')
                 print(f'Outcomes with a rolling median from 2-{len(team_2_df2023)} games')
                 print(f'{team_1}: {team_1_count} | {team_1_median}')
@@ -310,6 +312,9 @@ class cbb_regressor():
                 print('===============================================================')
                 print(f'Mean variablity of all features for {team_1}: {np.mean(mean_team_1_var)}')
                 print(f'Mean variablity of all features for {team_2}: {np.mean(mean_team_2_var)}')
+                print('===============================================================')
+                print(f'Variance of points scored by {team_1}: {np.var(self.pts_team_1)}')
+                print(f'Variance of points scored by {team_2}: {np.var(self.pts_team_2)}')
                 print('===============================================================')
                 if sys.argv[2] == "show":
                     self.visualization(np.mean(num_pts_score_team_1),np.mean(num_pts_score_team_2))
