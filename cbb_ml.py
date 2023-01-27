@@ -135,10 +135,10 @@ class cbb_regressor():
         self.x_no_corr.drop(columns=['level_0','index'],inplace = True)
         print(f'new feature dataframe shape after outlier removal: {self.x_no_corr.shape}')
         top_corr_features = corr_matrix.index
-        plt.figure(figsize=(30,30))
+        plt.figure(figsize=(20,20))
         sns.heatmap(corr_matrix[top_corr_features],annot=True,cmap="RdYlGn")    
         plt.tight_layout()
-        plt.savefig('correlations.png',dpi=300)
+        plt.savefig('correlations.png',dpi=250)
         plt.close()
     def random_forest_analysis(self):
         if argv[1] == 'tune':
