@@ -84,6 +84,7 @@ class cbb_regressor():
         print(f'length of data after duplicates are dropped: {len(self.all_data)}')
     def convert_to_float(self):
         for col in self.all_data.columns:
+            self.all_data[col].replace('', np.nan, inplace=True)
             self.all_data[col] = self.all_data[col].astype(float)
     def delete_opp(self):
         """
@@ -145,6 +146,7 @@ class cbb_regressor():
             RandForclass = RandomForestRegressor()
             #Use the number of features as a stopping criterion for depth
             rows, cols = self.x_train.shape
+            cols = int(cols / 1.15) #try to avoid overfitting on depth
             #square root of the total number of features is a good limit
             # cols = int(np.sqrt(cols))
             #parameters to tune
