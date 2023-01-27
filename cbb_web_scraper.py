@@ -46,6 +46,7 @@ def get_teams_year(year_min,year_max):
     return teams_save
 
 def html_to_df_web_scrape_cbb(URL,URL1,team,year):
+    #URL = Basic data ; URL1 = Advanced stats
     hdr = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"}
     req_1 = Request(URL,headers=hdr)
     html_1 = request.urlopen(req_1)
@@ -109,9 +110,18 @@ def html_to_df_web_scrape_cbb(URL,URL1,team,year):
     opp_blk= []
     opp_tov= []
     opp_pf= []
+    game_loc = []
     #BASIC STATS - change td.get_text() to float(td.get_text())
     for trb in tr_body:
         for td in trb.find_all('td'):
+            if td.get('data-stat') == "game_location":
+                #home = 0, away = 1, N = 2
+                if td.get_text() == 'N':
+                    game_loc.append(2)
+                elif td.get_text() == '@':
+                    game_loc.append(1)
+                elif td.get_text() == '':
+                    game_loc.append(0)
             if td.get('data-stat') == "game_result":
                 if td.get_text() == 'W':
                     game_result.append(1)
@@ -248,11 +258,11 @@ def html_to_df_web_scrape_cbb(URL,URL1,team,year):
     opp_ft,opp_fta,opp_ft_pct,opp_orb,opp_trb,opp_ast,opp_stl,opp_blk,opp_tov,
     opp_pf, off_rtg,def_rtg,pace,fta_per_fga_pct,fg3a_per_fga_pct,ts_pct,
     trb_pct,ast_pct,stl_pct,blk_pct,efg_pct,tov_pct,orb_pct,ft_rate,opp_efg_pct,
-    opp_tov_pct,drb_pct,opp_ft_rate)),
+    opp_tov_pct,drb_pct,opp_ft_rate,game_loc)),
             columns =['game_result','pts','opp_pts','fg','fga',
             'fg_pct','fg3','fg3a','fg3_pct','ft','fta','ft_pct','orb','total_board','ast',
             'stl','blk','tov','pf','opp_fg','opp_fga','opp_fg_pct','opp_fg3','opp_fg3a','opp_fg3_pct',
             'opp_ft','opp_fta','opp_ft_pct','opp_orb','opp_trb','opp_ast','opp_stl','opp_blk','opp_tov',
             'opp_pf','off_rtg','def_rtg','pace','fta_per_fga_pct','fg3a_per_fga_pct','ts_pct',
             'trb_pct','ast_pct','stl_pct','blk_pct','efg_pct','tov_pct','orb_pct','ft_rate','opp_efg_pct',
-            'opp_tov_pct','drb_pct','opp_ft_rate'])
+            'opp_tov_pct','drb_pct','opp_ft_rate','game_loc'])
