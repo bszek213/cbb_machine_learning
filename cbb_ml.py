@@ -210,6 +210,14 @@ class cbb_regressor():
                 if team_1 == 'exit':
                     break
                 team_2 = input('team_2: ')
+                #Game location
+                game_loc_team1 = int(input(f'{team_1} : #home = 0, away = 1, N = 2: '))
+                if game_loc_team1 == 0:
+                    game_loc_team2 = 1
+                elif game_loc_team1 == 1:
+                    game_loc_team2 = 0
+                elif game_loc_team1 == 2:
+                    game_loc_team2 = 2
                 #Check to see if the team was spelled right
                 team_1  = get_close_matches(team_1,teams_sports_ref['teams'].tolist(),n=1)[0]
                 team_2  = get_close_matches(team_2,teams_sports_ref['teams'].tolist(),n=1)[0]
@@ -273,11 +281,15 @@ class cbb_regressor():
                 mean_team_2_var = []
                 for ma in tqdm(ma_range):
                     data1_median = team_1_df2023.rolling(ma).median()
+                    data1_median['game_loc'] = game_loc_team1
                     data2_median = team_2_df2023.rolling(ma).median()
+                    data2_median['game_loc'] = game_loc_team2
                     # data1_mean_old = team_1_df2023.rolling(ma).mean()
                     # data2_mean_old = team_2_df2023.rolling(ma).mean()
                     data1_mean = team_1_df2023.ewm(span=ma,min_periods=ma-1).mean()
+                    data1_mean['game_loc'] = game_loc_team1
                     data2_mean = team_2_df2023.ewm(span=ma,min_periods=ma-1).mean()
+                    data2_mean['game_loc'] = game_loc_team2
                     team_1_predict_median = self.RandForRegressor.predict(data1_median.iloc[-1:])
                     team_2_predict_median = self.RandForRegressor.predict(data2_median.iloc[-1:])
                     team_1_predict_mean = self.RandForRegressor.predict(data1_mean.iloc[-1:])
@@ -340,9 +352,9 @@ class cbb_regressor():
                 exc_type, exc_obj, exc_tb = sys.exc_info()
                 fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
                 print(exc_type,' File with the error: ', fname, ' Line number with error: ',exc_tb.tb_lineno)
-                if exc_tb.tb_lineno == 216:
+                if exc_tb.tb_lineno == 226:
                     print(f'{team_1} data could not be found. check spelling or internet connection. Some teams do not have data on SportsReference')
-                elif exc_tb.tb_lineno == 219:
+                elif exc_tb.tb_lineno == 229:
                     print(f'{team_2} data could not be found. check spelling or internet connection. Some teams do not have data on SportsReference')
     def feature_importances_random_forest(self):
         importances = self.RandForRegressor.best_estimator_.feature_importances_
