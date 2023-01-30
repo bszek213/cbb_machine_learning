@@ -25,6 +25,7 @@ import joblib
 import sys
 import os
 from scipy.stats import variation
+from difflib import get_close_matches
 class cbb_regressor():
     def __init__(self):
         print('initialize class cbb_regressor')
@@ -83,6 +84,7 @@ class cbb_regressor():
         print(f'length of data after duplicates are dropped: {len(self.all_data)}')
     def convert_to_float(self):
         for col in self.all_data.columns:
+            self.all_data[col].replace('', np.nan, inplace=True)
             self.all_data[col] = self.all_data[col].astype(float)
     def delete_opp(self):
         """
@@ -133,10 +135,10 @@ class cbb_regressor():
         self.x_no_corr.drop(columns=['level_0','index'],inplace = True)
         print(f'new feature dataframe shape after outlier removal: {self.x_no_corr.shape}')
         top_corr_features = corr_matrix.index
-        plt.figure(figsize=(30,30))
+        plt.figure(figsize=(20,20))
         sns.heatmap(corr_matrix[top_corr_features],annot=True,cmap="RdYlGn")    
         plt.tight_layout()
-        plt.savefig('correlations.png',dpi=300)
+        plt.savefig('correlations.png',dpi=250)
         plt.close()
     def random_forest_analysis(self):
         if argv[1] == 'tune':
@@ -144,6 +146,7 @@ class cbb_regressor():
             RandForclass = RandomForestRegressor()
             #Use the number of features as a stopping criterion for depth
             rows, cols = self.x_train.shape
+            cols = int(cols / 1.15) #try to avoid overfitting on depth
             #square root of the total number of features is a good limit
             # cols = int(np.sqrt(cols))
             #parameters to tune
@@ -200,12 +203,24 @@ class cbb_regressor():
     def keras_regressor_analysis(self):
         pass
     def predict_two_teams(self):
+        teams_sports_ref = read_csv('teams_sports_ref_format.csv')
         while True:
             try:
                 team_1 = input('team_1: ')
                 if team_1 == 'exit':
                     break
                 team_2 = input('team_2: ')
+                #Game location
+                game_loc_team1 = int(input(f'{team_1} : #home = 0, away = 1, N = 2: '))
+                if game_loc_team1 == 0:
+                    game_loc_team2 = 1
+                elif game_loc_team1 == 1:
+                    game_loc_team2 = 0
+                elif game_loc_team1 == 2:
+                    game_loc_team2 = 2
+                #Check to see if the team was spelled right
+                team_1  = get_close_matches(team_1,teams_sports_ref['teams'].tolist(),n=1)[0]
+                team_2  = get_close_matches(team_2,teams_sports_ref['teams'].tolist(),n=1)[0]
                 #2023 data
                 year = 2023
                 basic = 'https://www.sports-reference.com/cbb/schools/' + team_1.lower() + '/' + str(year) + '-gamelogs.html'
@@ -251,7 +266,7 @@ class cbb_regressor():
                 #         team_2_df2023.drop(columns=col,inplace=True)
                 #Try to find the moving averages that work
                 # ma_range = np.arange(2,len(team_2_df2023)-2,1)
-                ma_range = np.arange(2,5,1) #2 was the most correct value for mean and 8 was the best for the median; chose 9 for tiebreaking
+                ma_range = np.arange(2,7,1) #2 was the most correct value for mean and 8 was the best for the median; chose 9 for tiebreaking
                 team_1_count = 0
                 team_2_count = 0
                 team_1_count_mean = 0
@@ -265,24 +280,28 @@ class cbb_regressor():
                 mean_team_1_var = []
                 mean_team_2_var = []
                 for ma in tqdm(ma_range):
-                    data1 = team_1_df2023.rolling(ma).median()
-                    data2 = team_2_df2023.rolling(ma).median()
+                    data1_median = team_1_df2023.rolling(ma).median()
+                    data1_median['game_loc'] = game_loc_team1
+                    data2_median = team_2_df2023.rolling(ma).median()
+                    data2_median['game_loc'] = game_loc_team2
                     # data1_mean_old = team_1_df2023.rolling(ma).mean()
                     # data2_mean_old = team_2_df2023.rolling(ma).mean()
                     data1_mean = team_1_df2023.ewm(span=ma,min_periods=ma-1).mean()
+                    data1_mean['game_loc'] = game_loc_team1
                     data2_mean = team_2_df2023.ewm(span=ma,min_periods=ma-1).mean()
-                    team_1_predict = self.RandForRegressor.predict(data1.iloc[-1:])
-                    team_2_predict = self.RandForRegressor.predict(data2.iloc[-1:])
+                    data2_mean['game_loc'] = game_loc_team2
+                    team_1_predict_median = self.RandForRegressor.predict(data1_median.iloc[-1:])
+                    team_2_predict_median = self.RandForRegressor.predict(data2_median.iloc[-1:])
                     team_1_predict_mean = self.RandForRegressor.predict(data1_mean.iloc[-1:])
                     team_2_predict_mean = self.RandForRegressor.predict(data2_mean.iloc[-1:])
                     num_pts_score_team_1.append(team_1_predict_mean[0])
                     num_pts_score_team_2.append(team_2_predict_mean[0])
-                    num_pts_score_team_1.append(team_1_predict[0])
-                    num_pts_score_team_2.append(team_2_predict[0])
-                    if team_1_predict > team_2_predict:
+                    num_pts_score_team_1.append(team_1_predict_median[0])
+                    num_pts_score_team_2.append(team_2_predict_median[0])
+                    if team_1_predict_median > team_2_predict_median:
                         team_1_count += 1
                         team_1_median.append(ma)
-                    if team_1_predict < team_2_predict:
+                    if team_1_predict_median < team_2_predict_median:
                         team_2_count += 1
                         team_2_median.append(ma)
                     if team_1_predict_mean > team_2_predict_mean:
@@ -291,25 +310,38 @@ class cbb_regressor():
                     if team_1_predict_mean < team_2_predict_mean:
                         team_2_count_mean += 1
                         team_2_ma.append(ma)
-                    #check variability
-                    mean_team_1_var.append(np.mean(variation(data1_mean.dropna(), axis=1)))
-                    mean_team_2_var.append(np.mean(variation(data2_mean.dropna(), axis=1)))
+                    #check variability between fg and off_ftg
+                    mean_team_1_var.append(np.mean(data1_mean[['fg','off_rtg']].dropna().std()))
+                    mean_team_1_var.append(np.mean(data1_median[['fg','off_rtg']].dropna().std()))
+                    mean_team_2_var.append(np.mean(data2_mean[['fg','off_rtg']].dropna().std()))
+                    mean_team_2_var.append(np.mean(data2_median[['fg','off_rtg']].dropna().std()))
                 print('===============================================================')
                 print(f'Outcomes with a rolling median from 2-{len(team_2_df2023)} games')
                 print(f'{team_1}: {team_1_count} | {team_1_median}')
                 print(f'{team_2}: {team_2_count} | {team_2_median}')
+                if team_1_count > team_2_count:
+                    print(f'======= {team_1} wins =======')
+                elif team_1_count < team_2_count:
+                    print(f'======= {team_2} wins =======')
                 print('===============================================================')
                 print(f'Outcomes with a mean from 2-{len(team_2_df2023)} games')
                 print(f'{team_1}: {team_1_count_mean} | {team_1_ma}')
                 print(f'{team_2}: {team_2_count_mean} | {team_2_ma}')
-                if abs(np.mean(num_pts_score_team_1) - np.mean(num_pts_score_team_2)) < 3:#self.rmse:
+                if team_1_count_mean > team_2_count_mean:
+                    print(f'======= {team_1} wins =======')
+                elif team_1_count_mean < team_2_count_mean:
+                    print(f'======= {team_2} wins =======')
+                print('===============================================================')
+                print(f'{team_1} number of pts score: {int(np.mean(num_pts_score_team_1))} +/- {np.std(num_pts_score_team_1)}')
+                print(f'{team_2} number of pts score: {int(np.mean(num_pts_score_team_2))} +/- {np.std(num_pts_score_team_2)}')
+                if abs(int(np.mean(num_pts_score_team_1)) - int(np.mean(num_pts_score_team_2))) < 3:#self.rmse
                     print('The point differential is less than the model RMSE, be cautious.')
                 print('===============================================================')
-                print(f'{team_1} number of pts score: {np.mean(num_pts_score_team_1)}')
-                print(f'{team_2} number of pts score: {np.mean(num_pts_score_team_2)}')
+                print(f'Mean variance of two best features {team_1}: {np.mean(mean_team_1_var)}')
+                print(f'Mean variance of two best features {team_2}: {np.mean(mean_team_2_var)}')
                 print('===============================================================')
-                print(f'Mean variablity of all features for {team_1}: {np.mean(mean_team_1_var)}')
-                print(f'Mean variablity of all features for {team_2}: {np.mean(mean_team_2_var)}')
+                print(f'Standard deviation of points scored by {team_1}: {np.std(self.pts_team_1)}')
+                print(f'Standard deviation of points scored by {team_2}: {np.std(self.pts_team_2)}')
                 print('===============================================================')
                 if sys.argv[2] == "show":
                     self.visualization(np.mean(num_pts_score_team_1),np.mean(num_pts_score_team_2))
@@ -318,9 +350,9 @@ class cbb_regressor():
                 exc_type, exc_obj, exc_tb = sys.exc_info()
                 fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
                 print(exc_type,' File with the error: ', fname, ' Line number with error: ',exc_tb.tb_lineno)
-                if exc_tb.tb_lineno == 216:
+                if exc_tb.tb_lineno == 226:
                     print(f'{team_1} data could not be found. check spelling or internet connection. Some teams do not have data on SportsReference')
-                elif exc_tb.tb_lineno == 219:
+                elif exc_tb.tb_lineno == 229:
                     print(f'{team_2} data could not be found. check spelling or internet connection. Some teams do not have data on SportsReference')
     def feature_importances_random_forest(self):
         importances = self.RandForRegressor.best_estimator_.feature_importances_
