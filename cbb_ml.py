@@ -266,7 +266,7 @@ class cbb_regressor():
                 #         team_2_df2023.drop(columns=col,inplace=True)
                 #Try to find the moving averages that work
                 # ma_range = np.arange(2,len(team_2_df2023)-2,1)
-                ma_range = np.arange(2,5,1) #2 was the most correct value for mean and 8 was the best for the median; chose 9 for tiebreaking
+                ma_range = np.arange(2,7,1) #2 was the most correct value for mean and 8 was the best for the median; chose 9 for tiebreaking
                 team_1_count = 0
                 team_2_count = 0
                 team_1_count_mean = 0
@@ -294,8 +294,8 @@ class cbb_regressor():
                     team_2_predict_median = self.RandForRegressor.predict(data2_median.iloc[-1:])
                     team_1_predict_mean = self.RandForRegressor.predict(data1_mean.iloc[-1:])
                     team_2_predict_mean = self.RandForRegressor.predict(data2_mean.iloc[-1:])
-                    # num_pts_score_team_1.append(team_1_predict_mean[0])
-                    # num_pts_score_team_2.append(team_2_predict_mean[0])
+                    num_pts_score_team_1.append(team_1_predict_mean[0])
+                    num_pts_score_team_2.append(team_2_predict_mean[0])
                     num_pts_score_team_1.append(team_1_predict_median[0])
                     num_pts_score_team_2.append(team_2_predict_median[0])
                     if team_1_predict_median > team_2_predict_median:
@@ -310,13 +310,11 @@ class cbb_regressor():
                     if team_1_predict_mean < team_2_predict_mean:
                         team_2_count_mean += 1
                         team_2_ma.append(ma)
-                    #check variability
-                    # mean_team_1_var.append(np.mean(variation(data1_mean.dropna(), axis=1)))
-                    # mean_team_2_var.append(np.mean(variation(data2_mean.dropna(), axis=1)))
-                    mean_team_1_var.append(np.mean(data1_mean.dropna().var()))
-                    mean_team_1_var.append(np.mean(data1_median.dropna().var()))
-                    mean_team_2_var.append(np.mean(data2_mean.dropna().var()))
-                    mean_team_2_var.append(np.mean(data2_median.dropna().var()))
+                    #check variability between fg and off_ftg
+                    mean_team_1_var.append(np.mean(data1_mean[['fg','off_rtg']].dropna().std()))
+                    mean_team_1_var.append(np.mean(data1_median[['fg','off_rtg']].dropna().std()))
+                    mean_team_2_var.append(np.mean(data2_mean[['fg','off_rtg']].dropna().std()))
+                    mean_team_2_var.append(np.mean(data2_median[['fg','off_rtg']].dropna().std()))
                 print('===============================================================')
                 print(f'Outcomes with a rolling median from 2-{len(team_2_df2023)} games')
                 print(f'{team_1}: {team_1_count} | {team_1_median}')
@@ -334,19 +332,19 @@ class cbb_regressor():
                 elif team_1_count_mean < team_2_count_mean:
                     print(f'======= {team_2} wins =======')
                 print('===============================================================')
-                print(f'{team_1} number of pts score: {int(np.mean(num_pts_score_team_1))}')
-                print(f'{team_2} number of pts score: {int(np.mean(num_pts_score_team_2))}')
-                if abs(int(np.mean(num_pts_score_team_1)) - int(np.mean(num_pts_score_team_2))) < 3:#self.rmse:
+                print(f'{team_1} number of pts score: {int(np.mean(num_pts_score_team_1))} +/- {np.std(num_pts_score_team_1)}')
+                print(f'{team_2} number of pts score: {int(np.mean(num_pts_score_team_2))} +/- {np.std(num_pts_score_team_2)}')
+                if abs(int(np.mean(num_pts_score_team_1)) - int(np.mean(num_pts_score_team_2))) < 3:#self.rmse
                     print('The point differential is less than the model RMSE, be cautious.')
                 print('===============================================================')
-                print(f'Mean variance of all features for {team_1}: {np.mean(mean_team_1_var)}')
-                print(f'Mean variance of all features for {team_2}: {np.mean(mean_team_2_var)}')
+                print(f'Mean variance of two best features {team_1}: {np.mean(mean_team_1_var)}')
+                print(f'Mean variance of two best features {team_2}: {np.mean(mean_team_2_var)}')
+                print('===============================================================')
+                print(f'Standard deviation of points scored by {team_1}: {np.std(self.pts_team_1)}')
+                print(f'Standard deviation of points scored by {team_2}: {np.std(self.pts_team_2)}')
                 print('===============================================================')
                 if sys.argv[2] == "show":
                     self.visualization(np.mean(num_pts_score_team_1),np.mean(num_pts_score_team_2))
-                    print(f'Standard deviation of points scored by {team_1}: {np.std(self.pts_team_1)}')
-                    print(f'Standard deviation of points scored by {team_2}: {np.std(self.pts_team_2)}')
-                    print('===============================================================')
             except Exception as e:
                 print(f'The error: {e}')
                 exc_type, exc_obj, exc_tb = sys.exc_info()
