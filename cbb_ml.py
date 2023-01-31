@@ -26,6 +26,7 @@ import sys
 import os
 from scipy.stats import variation
 from difflib import get_close_matches
+from datetime import datetime
 class cbb_regressor():
     def __init__(self):
         print('initialize class cbb_regressor')
@@ -343,7 +344,8 @@ class cbb_regressor():
                 print(f'Standard deviation of points scored by {team_1}: {np.std(self.pts_team_1)}')
                 print(f'Standard deviation of points scored by {team_2}: {np.std(self.pts_team_2)}')
                 print('===============================================================')
-                URL = "https://www.espn.com/mens-college-basketball/schedule/_/date/20230131" #sys argv????
+                date_today = str(datetime.now().date()).replace("-", "")
+                URL = "https://www.espn.com/mens-college-basketball/schedule/_/date/" + date_today #sys argv????
                 print(f'ESPN prediction: {cbb_web_scraper.get_espn(URL,team_1,team_2)}')
                 print('===============================================================')
                 if sys.argv[2] == "show":
