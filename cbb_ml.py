@@ -198,10 +198,10 @@ class cbb_regressor():
             #                                               max_features='log2', 
             #                                               n_estimators=300,
             #                                               min_samples_leaf=3)       
-    def multi_layer_perceptron(self):
-        pass
-    def keras_regressor_analysis(self):
-        pass
+    # def multi_layer_perceptron(self):
+    #     pass
+    # def keras_regressor_analysis(self):
+    #     pass
     def predict_two_teams(self):
         teams_sports_ref = read_csv('teams_sports_ref_format.csv')
         while True:
@@ -342,6 +342,9 @@ class cbb_regressor():
                 print('===============================================================')
                 print(f'Standard deviation of points scored by {team_1}: {np.std(self.pts_team_1)}')
                 print(f'Standard deviation of points scored by {team_2}: {np.std(self.pts_team_2)}')
+                print('===============================================================')
+                URL = "https://www.espn.com/mens-college-basketball/schedule/_/date/20230131" #sys argv????
+                print(f'ESPN prediction: {cbb_web_scraper.get_espn(URL,team_1,team_2)}')
                 print('===============================================================')
                 if sys.argv[2] == "show":
                     self.visualization(np.mean(num_pts_score_team_1),np.mean(num_pts_score_team_2))

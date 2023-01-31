@@ -15,6 +15,7 @@ from urllib import request
 from urllib.request import Request, urlopen
 from pandas import read_csv
 from numpy import where
+from re import search
 def get_teams_year(year_min,year_max):
     #Try to redo this when 429 is not an issue
     # URL = 'https://www.sports-reference.com/cbb/schools/'
@@ -266,3 +267,38 @@ def html_to_df_web_scrape_cbb(URL,URL1,team,year):
             'opp_pf','off_rtg','def_rtg','pace','fta_per_fga_pct','fg3a_per_fga_pct','ts_pct',
             'trb_pct','ast_pct','stl_pct','blk_pct','efg_pct','tov_pct','orb_pct','ft_rate','opp_efg_pct',
             'opp_tov_pct','drb_pct','opp_ft_rate','game_loc'])
+def get_espn(URL,team_1,team_2):
+    # URL = "https://www.espn.com/mens-college-basketball/schedule/_/date/20230131"
+    hdr = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"}
+    req_1 = Request(URL,headers=hdr)
+    html_1 = request.urlopen(req_1)
+    soup_1 = BeautifulSoup(html_1, "html.parser")
+    table = soup_1.find(class_="ResponsiveTable")
+    table1 = table.find(class_="Table__Scroller")
+    table2 = table.find(class_="Table")
+    table3 = table.find(class_="Table__TBODY")
+    for td in table3.find_all(class_="Table__TR Table__TR--sm Table__even"):
+        #Get team names
+        inst = td.find(class_="events__col Table__TD")
+        href_team = inst.find(class_="AnchorLink").get("href")
+        if team_1 in href_team:
+            #Get game link
+            inst = td.find(class_="date__col Table__TD")
+            href_val = inst.find(class_="AnchorLink").get("href")
+            game = "https://www.espn.com" + href_val
+            req_second = Request(game,headers=hdr)
+            html_second = request.urlopen(req_second)
+            soup_second = BeautifulSoup(html_second, "html.parser")
+            #Team 1 - left-0 top-0 = Away
+            team_1_predict = soup_second.find(class_="matchupPredictor__teamValue matchupPredictor__teamValue--b left-0 top-0 flex items-baseline absolute copy")
+            start = '>'
+            end = "<div"
+            team_1_result = float(search('%s(.*)%s' % (start, end), str(team_1_predict)).group(1))
+            #Team 2 - bottom-0 right-0 = Home
+            team_2_predict = soup_second.find(class_="matchupPredictor__teamValue matchupPredictor__teamValue--a bottom-0 right-0 flex items-baseline absolute copy")
+            start = '>'
+            end = "<div"
+            team_2_result = float(search('%s(.*)%s' % (start, end), str(team_2_predict)).group(1))
+            break
+    return {team_1: team_1_result, team_2: team_2_result}
+    
