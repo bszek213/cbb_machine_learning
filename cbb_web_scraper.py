@@ -268,6 +268,8 @@ def html_to_df_web_scrape_cbb(URL,URL1,team,year):
             'trb_pct','ast_pct','stl_pct','blk_pct','efg_pct','tov_pct','orb_pct','ft_rate','opp_efg_pct',
             'opp_tov_pct','drb_pct','opp_ft_rate','game_loc'])
 def get_espn(URL,team_1,team_2):
+    team_1 = create_acr(team_1)
+    team_2 = create_acr(team_2)
     # URL = "https://www.espn.com/mens-college-basketball/schedule/_/date/20230131"
     hdr = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"}
     req_1 = Request(URL,headers=hdr)
@@ -299,6 +301,16 @@ def get_espn(URL,team_1,team_2):
             start = '>'
             end = "<div"
             team_2_result = float(search('%s(.*)%s' % (start, end), str(team_2_predict)).group(1))
-            break
-    return {team_1: team_1_result, team_2: team_2_result}
-    
+            return {team_1: team_1_result, team_2: team_2_result}
+    return 'Could not find teams'
+def create_acr(name):
+    if name == "virginia-commonwealth":
+        return "vcu"
+    elif name == "connecticut":
+        return "uconn"
+    elif name == "nevada-las-vegas":
+        return "unlv"
+    elif name == "loyola-il":
+        return "loyola-chicago"
+    else:
+        return name
