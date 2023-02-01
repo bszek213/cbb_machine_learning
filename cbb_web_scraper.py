@@ -320,5 +320,7 @@ def create_acr(name):
         return "smu"
     elif name == "louisiana-state":
         return "lsu"
+    elif name == "albany-ny":
+        return "albany"
     else:
         return name
