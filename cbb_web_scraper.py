@@ -312,5 +312,13 @@ def create_acr(name):
         return "unlv"
     elif name == "loyola-il":
         return "loyola-chicago"
+    elif name == "massachusetts":
+        return "umass"
+    elif name == "illinois-chicago":
+        return "uic"
+    elif name == "southern-methodist":
+        return "smu"
+    elif name == "louisiana-state":
+        return "lsu"
     else:
         return name
