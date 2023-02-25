@@ -23,7 +23,8 @@ from sklearn.metrics import confusion_matrix, f1_score, accuracy_score
 from difflib import get_close_matches
 import sys
 from datetime import datetime, timedelta
-
+from sklearn.metrics import roc_curve
+import seaborn as sns
 """
 TODO: change the labels to be a 2x1 array of team_1 = 0, team_2 = 1.
 Use the opponent features for team_2 and then the normal features for team_1.
@@ -175,20 +176,27 @@ class cbbClass():
             self.RandForclass = search_rand
             prediction = self.RandForclass.predict(self.x_test)
             print(confusion_matrix(self.y_test, prediction))# Display accuracy score
-            print(accuracy_score(self.y_test, prediction))# Display F1 score
-            print(f1_score(self.y_test, prediction))
+            print(f'Model accuracy: {accuracy_score(self.y_test, prediction)}')# Display F1 score
+            # print(f1_score(self.y_test, prediction))
         else:
             print('Load tuned Random Forest Regressor')
             # load RandomForestModel
             self.RandForclass=joblib.load("./classifierModelTuned.joblib")
             prediction = self.RandForclass.predict(self.x_test)
             print(confusion_matrix(self.y_test, prediction))# Display accuracy score
-            print(accuracy_score(self.y_test, prediction))# Display F1 score
-            print(f1_score(self.y_test, prediction))
+            print(f'Model accuracy: {accuracy_score(self.y_test, prediction)}')# Display F1 score
+            # print(f1_score(self.y_test, prediction))
+        y_proba = self.RandForclass.predict_proba(self.x_test)[:, 1]
+        fpr, tpr, thresholds = roc_curve(self.y_test, y_proba)
+        plt.plot(fpr, tpr)
+        plt.xlabel('False Positive Rate')
+        plt.ylabel('True Positive Rate')
+        plt.title('ROC Curve')
+        plt.savefig('ROC_curve_class.png',dpi=300)
     def predict_two_teams(self):
         teams_sports_ref = read_csv('teams_sports_ref_format.csv')
         while True:
-            # try:
+            try:
                 team_1 = input('team_1: ')
                 if team_1 == 'exit':
                     break
@@ -262,7 +270,7 @@ class cbbClass():
                 print('===============================================================')
                 if np.mean(team_1_ma) > np.mean(team_2_ma):
                     print(f'{team_1} wins')
-                elif np.mean(team_1_ma) > np.mean(team_2_ma):
+                elif np.mean(team_1_ma) < np.mean(team_2_ma):
                     print(f'{team_2} wins')
                 if "tod" in sys.argv[2]:
                     date_today = str(datetime.now().date()).replace("-", "")
@@ -271,15 +279,34 @@ class cbbClass():
                 URL = "https://www.espn.com/mens-college-basketball/schedule/_/date/" + date_today #sys argv????
                 print(f'ESPN prediction: {cbb_web_scraper.get_espn(URL,team_1,team_2)}')
                 print('===============================================================')
-                input()
-            # except:
-            #     print('error')
+            except Exception as e:
+                print(f'The error: {e}')
+    def feature_importances_random_forest(self):
+        importances = self.RandForclass.best_estimator_.feature_importances_
+        indices = np.argsort(importances)
+        plt.figure()
+        plt.title('Feature Importances Random Forest - Classifier')
+        plt.barh(range(len(indices)), importances[indices], color='k', align='center')
+        plt.yticks(range(len(indices)), [self.x_test.columns[i] for i in indices])
+        plt.xlabel('Relative Importance - explained variance')
+        plt.tight_layout()
+        plt.savefig('feature_importance_random_forest_classifier.png',dpi=300)
+        # importances = self.RandForclass.best_estimator_.feature_importances_
+        # indices = np.argsort(importances)
+        # feature_names = [self.x_test.columns[i] for i in indices]
+        # plt.figure()
+        # sns.set_style("whitegrid")
+        # sns.barplot(x=importances[indices], y=feature_names, color='black', orient='h')
+        # plt.title('Feature Importances Random Forest - Classifier')
+        # plt.xlabel('Relative Importance - explained variance')
+        # plt.tight_layout()
+        # plt.savefig('feature_importance_random_forest_classifier.png',dpi=300)
     def run_analysis(self):
         self.get_teams()
         self.split()
         self.random_forest_analysis()
         self.predict_two_teams()
-        # self.feature_importances_random_forest()
+        self.feature_importances_random_forest()
 def main():
     cbbClass().run_analysis()
 if __name__ == '__main__':

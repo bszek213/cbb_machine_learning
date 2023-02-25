@@ -334,5 +334,9 @@ def create_acr(name):
         return "vmi"
     elif name == "saint-francis-pa":
         return "st-francis-pa"
+    elif name == "southern-california":
+        return "usc"
+    elif name == "saint-marys-ca":
+        return "saint-marys"
     else:
         return name

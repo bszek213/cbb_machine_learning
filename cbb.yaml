@@ -24,7 +24,6 @@ dependencies:
 - spyder
 - notebook
 - keyboard
-- py-xgboost-gpu
 - eli5
 - pip
 - pip:
