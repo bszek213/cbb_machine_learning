@@ -1,0 +1,35 @@
+name: cbb
+channels:
+- conda-forge
+- robostack
+- anaconda
+- intel
+- rapidsai
+dependencies:
+- hvplot
+- numpy
+- pandas
+- holoviews
+- scikit-learn
+- keras
+- cudatoolkit=11.2
+- cudnn=8.1.0
+- scipy
+- ipython
+- plotly
+- seaborn
+- ipywidgets
+- ipykernel
+- matplotlib
+- spyder
+- notebook
+- keyboard
+- py-xgboost-gpu
+- eli5
+- pip
+- pip:
+  - sportsipy
+  - tensorflow
+  - beautifulsoup4
+  - eli5
+  - cfbd
