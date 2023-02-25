@@ -8,6 +8,7 @@ errors.log
 #Compression
 randomForestModelTuned.pkl
 randomForestModelTuned.joblib
+classifierModelTuned.joblib
 
 # C extensions
 *.so
