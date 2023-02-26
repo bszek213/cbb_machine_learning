@@ -98,7 +98,7 @@ class cbbClass():
             if 'opp' in col:
                 self.all_data.drop(columns=col,inplace=True)
     def split(self):
-        self.delete_opp()
+        # self.delete_opp()
         for col in self.all_data.columns:
             if 'Unnamed' in col:
                 self.all_data.drop(columns=col,inplace=True)
@@ -150,7 +150,7 @@ class cbbClass():
             RandForclass = RandomForestClassifier()
             #Use the number of features as a stopping criterion for depth
             rows, cols = self.x_train.shape
-            cols = int(cols / 1.15) #try to avoid overfitting on depth
+            cols = int(cols / 2.5) #try to avoid overfitting on depth
             #square root of the total number of features is a good limit
             # cols = int(np.sqrt(cols))
             #parameters to tune
@@ -172,14 +172,14 @@ class cbbClass():
             # with open('randomForestModelTuned.pkl','wb') as f:
             #     pickle.dump(search_rand,f)
             joblib.dump(search_rand, "./classifierModelTuned.joblib", compress=9)
-            print('RandomForestRegressor - best params: ',search_rand.best_params_)
+            print('RandomForestClassifier - best params: ',search_rand.best_params_)
             self.RandForclass = search_rand
             prediction = self.RandForclass.predict(self.x_test)
             print(confusion_matrix(self.y_test, prediction))# Display accuracy score
             print(f'Model accuracy: {accuracy_score(self.y_test, prediction)}')# Display F1 score
             # print(f1_score(self.y_test, prediction))
         else:
-            print('Load tuned Random Forest Regressor')
+            print('Load tuned Random Forest Classifier')
             # load RandomForestModel
             self.RandForclass=joblib.load("./classifierModelTuned.joblib")
             prediction = self.RandForclass.predict(self.x_test)
@@ -228,12 +228,12 @@ class cbbClass():
                 team_2_df2023.replace('', np.nan, inplace=True)
                 team_2_df2023.dropna(inplace=True)
                 #Remove pts and game result
-                for col in team_1_df2023.columns:
-                    if 'opp' in col:
-                        team_1_df2023.drop(columns=col,inplace=True)
-                for col in team_2_df2023.columns:
-                    if 'opp' in col:
-                        team_2_df2023.drop(columns=col,inplace=True)
+                # for col in team_1_df2023.columns:
+                #     if 'opp' in col:
+                #         team_1_df2023.drop(columns=col,inplace=True)
+                # for col in team_2_df2023.columns:
+                #     if 'opp' in col:
+                #         team_2_df2023.drop(columns=col,inplace=True)
                 team_1_df2023.drop(columns=['game_result'],inplace=True)
                 team_2_df2023.drop(columns=['game_result'],inplace=True)
                 #Drop the correlated features
@@ -244,7 +244,8 @@ class cbbClass():
                 team_2_count = 0
                 team_1_count_mean = 0
                 team_2_count_mean = 0
-                team_1_ma = []
+                team_1_ma_win = []
+                team_1_ma_loss = []
                 team_2_ma = []
                 for ma in tqdm(ma_range):
                     data1_median = team_1_df2023.rolling(ma).median()
@@ -259,19 +260,33 @@ class cbbClass():
                     data2_mean['game_loc'] = game_loc_team2
                     # team_1_predict_median = self.RandForclass.predict(data1_median.iloc[-1:])
                     # team_2_predict_median = self.RandForclass.predict(data2_median.iloc[-1:])
+                    #Here replace opponent metrics with the features of the second team
+                    for col in team_1_df2023.columns:
+                        if "opp" in col:
+                            if col == 'opp_trb':
+                                # new_col = col.replace("opp_", "")
+                                data1_mean.loc[data1_mean.index[-1], 'opp_trb'] = data2_mean.loc[data2_mean.index[-1], 'total_board']
+                                # data1_mean['opp_trb'].iloc[-1] = data2_mean['total_board'].iloc[-1]
+                            else:
+                                new_col = col.replace("opp_", "")
+                                data1_mean.loc[data1_mean.index[-1], col] = data2_mean.loc[data2_mean.index[-1], new_col]
+                                # data1_mean[col].iloc[-1] = data2_mean[new_col].iloc[-1]
                     team_1_predict_mean = self.RandForclass.predict_proba(data1_mean.iloc[-1:])
-                    team_2_predict_mean = self.RandForclass.predict_proba(data2_mean.iloc[-1:])
+                    # team_2_predict_mean = self.RandForclass.predict_proba(data2_mean.iloc[-1:])
                     # both = self.RandForclass.predict_proba(concat([data1_mean.iloc[-1:], data2_mean.iloc[-1:]]))
-                    team_1_ma.append(team_1_predict_mean[0][1])
-                    team_2_ma.append(team_2_predict_mean[0][1])
+                    team_1_ma_win.append(team_1_predict_mean[0][1])
+                    team_1_ma_loss.append(team_1_predict_mean[0][0])
+                # team_2_ma.append(team_2_predict_mean[0][1])
                 print('===============================================================')
-                print(f'{team_1} winning: {np.mean(team_1_ma)}%')
-                print(f'{team_2} winning: {np.mean(team_2_ma)}%')
+                print(f'{team_1} win probability {np.mean(team_1_ma_win)}%')
+                print(f'{team_1} loss probability {np.mean(team_1_ma_loss)}%')
+                # print(f'{team_2} winning: {np.mean(team_2_ma)}%')
                 print('===============================================================')
-                if np.mean(team_1_ma) > np.mean(team_2_ma):
+                if np.mean(team_1_ma_win) > np.mean(team_1_ma_loss):
                     print(f'{team_1} wins')
-                elif np.mean(team_1_ma) < np.mean(team_2_ma):
+                else:
                     print(f'{team_2} wins')
+                print('===============================================================')
                 if "tod" in sys.argv[2]:
                     date_today = str(datetime.now().date()).replace("-", "")
                 elif "tom" in sys.argv[2]:
