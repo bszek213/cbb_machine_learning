@@ -227,6 +227,7 @@ class cbb_regressor():
                 basic = 'https://www.sports-reference.com/cbb/schools/' + team_1.lower() + '/' + str(year) + '-gamelogs.html'
                 adv = 'https://www.sports-reference.com/cbb/schools/' + team_1.lower() + '/' + str(year) + '-gamelogs-advanced.html'
                 team_1_df2023 = cbb_web_scraper.html_to_df_web_scrape_cbb(basic,adv,team_1.lower(),year)
+                sleep(4) #I get get banned for a small period of time if I do not do this
                 basic = 'https://www.sports-reference.com/cbb/schools/' + team_2.lower() + '/' + str(year) + '-gamelogs.html'
                 adv = 'https://www.sports-reference.com/cbb/schools/' + team_2.lower() + '/' + str(year) + '-gamelogs-advanced.html'
                 team_2_df2023 = cbb_web_scraper.html_to_df_web_scrape_cbb(basic,adv,team_2.lower(),year)
@@ -344,9 +345,9 @@ class cbb_regressor():
                 print(f'Standard deviation of points scored by {team_1}: {np.std(self.pts_team_1)}')
                 print(f'Standard deviation of points scored by {team_2}: {np.std(self.pts_team_2)}')
                 print('===============================================================')
-                if "tod" in sys.argv[3]:
+                if "tod" in sys.argv[2]:
                     date_today = str(datetime.now().date()).replace("-", "")
-                elif "tom" in sys.argv[3]:
+                elif "tom" in sys.argv[2]:
                     date_today = str(datetime.now().date() + timedelta(days=1)).replace("-", "")
                 URL = "https://www.espn.com/mens-college-basketball/schedule/_/date/" + date_today #sys argv????
                 print(f'ESPN prediction: {cbb_web_scraper.get_espn(URL,team_1,team_2)}')

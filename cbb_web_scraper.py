@@ -340,6 +340,10 @@ def create_acr(name):
         return "saint-marys"
     elif name == "alabama-birmingham":
         return "uab"
+    elif name == "north-carolina-state":
+        return "nc-state"
+    elif name == "maryland-baltimore-county":
+        return "umbc"
     else:
         return name
     

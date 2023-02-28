@@ -25,6 +25,7 @@ import sys
 from datetime import datetime, timedelta
 from sklearn.metrics import roc_curve
 import seaborn as sns
+import cbb_regression
 """
 TODO: change the labels to be a 2x1 array of team_1 = 0, team_2 = 1.
 Use the opponent features for team_2 and then the normal features for team_1.
@@ -34,6 +35,8 @@ class cbbClass():
     def __init__(self):
         print('instantiate class cbbClass')
         self.all_data = DataFrame()
+        # if exists(join(getcwd(),'randomForestModelTuned.joblib')):
+        #     self.RandForRegressor=joblib.load("./randomForestModelTuned.joblib")
     def get_teams(self):
         year_list_find = []
         year_list = [2023,2022,2021,2019,2018,2017,2016,2015,2014,2013,2012] #,2014,2013,2012,2011,2010
@@ -217,6 +220,7 @@ class cbbClass():
                 basic = 'https://www.sports-reference.com/cbb/schools/' + team_1.lower() + '/' + str(year) + '-gamelogs.html'
                 adv = 'https://www.sports-reference.com/cbb/schools/' + team_1.lower() + '/' + str(year) + '-gamelogs-advanced.html'
                 team_1_df2023 = cbb_web_scraper.html_to_df_web_scrape_cbb(basic,adv,team_1.lower(),year)
+                sleep(4) #I get get banned for a small period of time if I do not do this
                 basic = 'https://www.sports-reference.com/cbb/schools/' + team_2.lower() + '/' + str(year) + '-gamelogs.html'
                 adv = 'https://www.sports-reference.com/cbb/schools/' + team_2.lower() + '/' + str(year) + '-gamelogs-advanced.html'
                 team_2_df2023 = cbb_web_scraper.html_to_df_web_scrape_cbb(basic,adv,team_2.lower(),year)
@@ -248,12 +252,13 @@ class cbbClass():
                 team_1_ma_loss = []
                 team_2_ma = []
                 for ma in tqdm(ma_range):
-                    data1_median = team_1_df2023.rolling(ma).median()
-                    data1_median['game_loc'] = game_loc_team1
-                    data2_median = team_2_df2023.rolling(ma).median()
-                    data2_median['game_loc'] = game_loc_team2
+                    # data1_median = team_1_df2023.rolling(ma).median()
+                    # data1_median['game_loc'] = game_loc_team1
+                    # data2_median = team_2_df2023.rolling(ma).median()
+                    # data2_median['game_loc'] = game_loc_team2
                     # data1_mean_old = team_1_df2023.rolling(ma).mean()
                     # data2_mean_old = team_2_df2023.rolling(ma).mean()
+                    # TEAM 1
                     data1_mean = team_1_df2023.ewm(span=ma,min_periods=ma-1).mean()
                     data1_mean['game_loc'] = game_loc_team1
                     data2_mean = team_2_df2023.ewm(span=ma,min_periods=ma-1).mean()
@@ -266,20 +271,33 @@ class cbbClass():
                             if col == 'opp_trb':
                                 # new_col = col.replace("opp_", "")
                                 data1_mean.loc[data1_mean.index[-1], 'opp_trb'] = data2_mean.loc[data2_mean.index[-1], 'total_board']
-                                # data1_mean['opp_trb'].iloc[-1] = data2_mean['total_board'].iloc[-1]
                             else:
                                 new_col = col.replace("opp_", "")
                                 data1_mean.loc[data1_mean.index[-1], col] = data2_mean.loc[data2_mean.index[-1], new_col]
-                                # data1_mean[col].iloc[-1] = data2_mean[new_col].iloc[-1]
                     team_1_predict_mean = self.RandForclass.predict_proba(data1_mean.iloc[-1:])
-                    # team_2_predict_mean = self.RandForclass.predict_proba(data2_mean.iloc[-1:])
-                    # both = self.RandForclass.predict_proba(concat([data1_mean.iloc[-1:], data2_mean.iloc[-1:]]))
+                    #TEAM 2
+                    data1_mean_change = team_1_df2023.ewm(span=ma,min_periods=ma-1).mean()
+                    data1_mean_change['game_loc'] = game_loc_team1
+                    data2_mean_change = team_2_df2023.ewm(span=ma,min_periods=ma-1).mean()
+                    data2_mean_change['game_loc'] = game_loc_team2
+                    # team_1_predict_median = self.RandForclass.predict(data1_median.iloc[-1:])
+                    # team_2_predict_median = self.RandForclass.predict(data2_median.iloc[-1:])
+                    #Here replace opponent metrics with the features of the second team
+                    # for col in team_2_df2023.columns:
+                    #     if "opp" in col:
+                    #         if col == 'opp_trb':
+                    #             # new_col = col.replace("opp_", "")
+                    #             data2_mean_change.loc[data2_mean_change.index[-1], 'opp_trb'] = data1_mean_change.loc[data1_mean_change.index[-1], 'total_board']
+                    #         else:
+                    #             new_col = col.replace("opp_", "")
+                    #             data2_mean_change.loc[data2_mean_change.index[-1], col] = data1_mean_change.loc[data1_mean_change.index[-1], new_col]
+                    # team_2_predict_mean = self.RandForclass.predict_proba(data2_mean_change.iloc[-1:])
                     team_1_ma_win.append(team_1_predict_mean[0][1])
                     team_1_ma_loss.append(team_1_predict_mean[0][0])
                 # team_2_ma.append(team_2_predict_mean[0][1])
                 print('===============================================================')
-                print(f'{team_1} win probability {np.mean(team_1_ma_win)}%')
-                print(f'{team_1} loss probability {np.mean(team_1_ma_loss)}%')
+                print(f'{team_1} win probability {round(np.mean(team_1_ma_win),4)*100}%')
+                # print(f'{team_2} win probability {round(np.median(team_2_predict_mean),4)*100}%')
                 # print(f'{team_2} winning: {np.mean(team_2_ma)}%')
                 print('===============================================================')
                 if np.mean(team_1_ma_win) > np.mean(team_1_ma_loss):
