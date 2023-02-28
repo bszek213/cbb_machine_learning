@@ -283,9 +283,9 @@ class cbbClass():
                 # print(f'{team_2} winning: {np.mean(team_2_ma)}%')
                 print('===============================================================')
                 if np.mean(team_1_ma_win) > np.mean(team_1_ma_loss):
-                    print(f'{team_1} wins')
+                    print(f'{team_1} wins over {team_2}')
                 else:
-                    print(f'{team_2} wins')
+                    print(f'{team_2} wins over {team_1}')
                 print('===============================================================')
                 if "tod" in sys.argv[2]:
                     date_today = str(datetime.now().date()).replace("-", "")
