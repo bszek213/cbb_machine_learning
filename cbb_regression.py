@@ -224,6 +224,7 @@ class cbb_regressor():
                 team_2  = get_close_matches(team_2,teams_sports_ref['teams'].tolist(),n=1)[0]
                 #2023 data
                 year = 2023
+                sleep(4)
                 basic = 'https://www.sports-reference.com/cbb/schools/' + team_1.lower() + '/' + str(year) + '-gamelogs.html'
                 adv = 'https://www.sports-reference.com/cbb/schools/' + team_1.lower() + '/' + str(year) + '-gamelogs-advanced.html'
                 team_1_df2023 = cbb_web_scraper.html_to_df_web_scrape_cbb(basic,adv,team_1.lower(),year)
