@@ -65,7 +65,8 @@ def html_to_df_web_scrape_cbb(URL,URL1,team,year):
         # except:
         #     print('HTTPSConnectionPool(host="www.sports-reference.com", port=443): Max retries exceeded. Retry in 10 seconds')
         #     sleep(10)
-    table = soup_1.find(id="all_sgl-basic")
+    # table = soup_1.find(id="all_sgl-basic")
+    table = soup_1.select_one('table[id^="sgl-basic"]')
     table1 = soup_2.find(id="all_sgl-advanced")
     tbody = table.find('tbody')
     tbody1 = table1.find('tbody')
