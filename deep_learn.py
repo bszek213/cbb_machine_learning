@@ -153,6 +153,7 @@ class cbbDeep():
                 metrics=['accuracy'])
             history = self.model.fit(self.x_train, self.y_train, epochs=50, batch_size=32, validation_split=0.2)
             self.model.save('deep_learning.h5')
+            plt.figure()
             plt.plot(history.history['accuracy'], label='training accuracy')
             plt.plot(history.history['val_accuracy'], label='validation accuracy')
             plt.title('Accuracy History')
@@ -160,8 +161,10 @@ class cbbDeep():
             plt.ylabel('Accuracy')
             plt.legend()
             plt.savefig('Accuracy.png',dpi=300)
+            plt.close()
 
             # plot loss history
+            plt.figure()
             plt.plot(history.history['loss'], label='training loss')
             plt.plot(history.history['val_loss'], label='validation loss')
             plt.title('Loss History')
@@ -169,6 +172,7 @@ class cbbDeep():
             plt.ylabel('Loss')
             plt.legend()
             plt.savefig('Loss.png',dpi=300)
+            plt.close()
     def predict_two_teams(self):
         teams_sports_ref = read_csv('teams_sports_ref_format.csv')
         while True:
@@ -217,7 +221,7 @@ class cbbDeep():
                 #Drop the correlated features
                 team_1_df2023.drop(columns=self.drop_cols, inplace=True)
                 team_2_df2023.drop(columns=self.drop_cols, inplace=True)
-                ma_range = np.arange(2,4,1) #2 was the most correct value for mean and 8 was the best for the median; chose 9 for tiebreaking
+                ma_range = np.arange(2,5,1) #2 was the most correct value for mean and 8 was the best for the median; chose 9 for tiebreaking
                 team_1_count = 0
                 team_2_count = 0
                 team_1_count_mean = 0
@@ -279,7 +283,7 @@ class cbbDeep():
                     #             data2_mean_change.loc[data2_mean_change.index[-1], col] = data1_mean_change.loc[data1_mean_change.index[-1], new_col]
                     # team_2_predict_mean = self.RandForclass.predict_proba(data2_mean_change.iloc[-1:])
                 # team_2_ma.append(team_2_predict_mean[0][1])
-                print('===============================================================')
+                # print('===============================================================')
                 # print(f'{team_1} win probability {round(np.mean(team_1_ma_win),4)*100}%')
                 # print(f'{team_2} win probability {round(np.median(team_2_predict_mean),4)*100}%')
                 # print(f'{team_2} winning: {np.mean(team_2_ma)}%')
@@ -290,7 +294,7 @@ class cbbDeep():
                 #     print(f'{team_2} wins over {team_1}')
                 if team_1_count > team_2_count:
                     print(f'{team_1} wins over {team_2}')
-                else:
+                elif team_1_count < team_2_count:
                     print(f'{team_2} wins over {team_1}')
                 print('===============================================================')
             except Exception as e:
