@@ -2,6 +2,7 @@
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
+from tensorflow.keras.wrappers.scikit_learn import KerasClassifier
 from sklearn.preprocessing import StandardScaler
 import cbb_web_scraper
 from os import getcwd
@@ -24,6 +25,7 @@ import sys
 from datetime import datetime, timedelta
 from sklearn.metrics import roc_curve
 import seaborn as sns
+
 class cbbDeep():
     def __init__(self):
         print('instantiate class cbbClass')
@@ -132,18 +134,46 @@ class cbbDeep():
         self.x_no_corr.drop(columns=['level_0','index'],inplace = True)
         print(f'new feature dataframe shape after outlier removal: {self.x_no_corr.shape}')
         top_corr_features = corr_matrix.index
+    def create_model(self, neurons=32, learning_rate=0.001, dropout_rate=0.2, alpha=0.1):
+        model = keras.Sequential([
+            layers.Dense(neurons, input_shape=(self.x_no_corr.shape[1],)),
+            layers.LeakyReLU(alpha=alpha),
+            layers.Dropout(dropout_rate),
+            layers.Dense(neurons),
+            layers.LeakyReLU(alpha=alpha),
+            layers.Dropout(dropout_rate),
+            layers.Dense(neurons),
+            layers.LeakyReLU(alpha=alpha),
+            layers.Dropout(dropout_rate),
+            layers.Dense(1, activation='sigmoid')
+        ])
+        optimizer = keras.optimizers.Adam(learning_rate=learning_rate)
+        model.compile(optimizer=optimizer, loss='binary_crossentropy', metrics=['accuracy'])
+        return model
     def deep_learn(self):
         if exists('deep_learning.h5'):
             self.model = keras.models.load_model('deep_learning.h5')
         else:
+            #best params
+            # Best: 0.999925 using {'alpha': 0.1, 'batch_size': 32, 'dropout_rate': 0.2,
+            #  'learning_rate': 0.001, 'neurons': 16}
             self.model = keras.Sequential([
-                    layers.Dense(32, input_shape=(self.x_no_corr.shape[1],)),
+                    layers.Dense(16, input_shape=(self.x_no_corr.shape[1],)),
                     layers.LeakyReLU(alpha=0.1),
                     layers.Dropout(0.2),
-                    layers.Dense(32),
+                    layers.Dense(16),
                     layers.LeakyReLU(alpha=0.1),
                     layers.Dropout(0.2),
-                    layers.Dense(32),
+                    layers.Dense(16),
+                    layers.LeakyReLU(alpha=0.1),
+                    layers.Dropout(0.2),
+                    layers.Dense(16),
+                    layers.LeakyReLU(alpha=0.1),
+                    layers.Dropout(0.2),
+                    layers.Dense(16),
+                    layers.LeakyReLU(alpha=0.1),
+                    layers.Dropout(0.2),
+                    layers.Dense(16),
                     layers.LeakyReLU(alpha=0.1),
                     layers.Dropout(0.2),
                     layers.Dense(1, activation='sigmoid')
@@ -151,7 +181,33 @@ class cbbDeep():
             self.model.compile(optimizer='adam',
                 loss='binary_crossentropy',
                 metrics=['accuracy'])
-            history = self.model.fit(self.x_train, self.y_train, epochs=50, batch_size=32, validation_split=0.2)
+            history = self.model.fit(self.x_train, self.y_train, 
+                                     epochs=50, batch_size=32, 
+                                     validation_split=0.2)
+            # param_grid = {
+            #     'neurons': [16, 32, 64],
+            #     'learning_rate': [0.01, 0.001, 0.0001],
+            #     'dropout_rate': [0.1, 0.2, 0.3],
+            #     'alpha': [0.01, 0.1, 0.2],
+            #     'batch_size': [16, 32, 64]
+            # }
+            # param_grid = {
+            #     'neurons': [16, 32],
+            #     'learning_rate': [0.01, 0.001],
+            #     'dropout_rate': [0.2],
+            #     'alpha': [0.1],
+            #     'batch_size': [32, 64]
+            # }
+            # model = KerasClassifier(build_fn=self.create_model, 
+            #                         epochs=50, batch_size=32, verbose=4)
+            # grid = GridSearchCV(estimator=model, 
+            #                     param_grid=param_grid,
+            #                     cv=3,
+            #                     verbose=3)
+            # self.grid_result = grid.fit(self.x_train, self.y_train)
+            # print("Best: %f using %s" % (self.grid_result.best_score_, self.grid_result.best_params_))
+            # self.model = self.grid_result
+            # input()
             self.model.save('deep_learning.h5')
             plt.figure()
             plt.plot(history.history['accuracy'], label='training accuracy')
@@ -256,6 +312,7 @@ class cbbDeep():
                     #TEAM 1 Prediction
                     x_new = self.scaler.transform(data1_mean.iloc[-1:])
                     prediction = self.model.predict(x_new)
+                    print(f'prediction: {prediction}')
                     probability = prediction[0]
                     if probability > 0.5:
                         team_1_count += 1
