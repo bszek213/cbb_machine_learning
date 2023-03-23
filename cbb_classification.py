@@ -167,9 +167,9 @@ class cbbClass():
                 'min_samples_leaf': np.arange(1,3,1)
                 }
             clf_rand = GridSearchCV(RandForclass, Rand_perm, 
-                                scoring=['accuracy'],
-                                cv=10,
-                               refit='accuracy',verbose=4, n_jobs=-1)
+                                scoring=['accuracy','f1'],
+                                cv=5,
+                               refit='accuracy',verbose=4, n_jobs=6)
             search_rand = clf_rand.fit(self.x_train,self.y_train)
             #Write fitted and tuned model to file
             # with open('randomForestModelTuned.pkl','wb') as f:
@@ -244,7 +244,7 @@ class cbbClass():
                 #Drop the correlated features
                 team_1_df2023.drop(columns=self.drop_cols, inplace=True)
                 team_2_df2023.drop(columns=self.drop_cols, inplace=True)
-                ma_range = np.arange(2,4,1) #2 was the most correct value for mean and 8 was the best for the median; chose 9 for tiebreaking
+                ma_range = np.arange(2,5,1) #2 was the most correct value for mean and 8 was the best for the median; chose 9 for tiebreaking
                 team_1_count = 0
                 team_2_count = 0
                 team_1_count_mean = 0
@@ -275,12 +275,15 @@ class cbbClass():
                             else:
                                 new_col = col.replace("opp_", "")
                                 data1_mean.loc[data1_mean.index[-1], col] = data2_mean.loc[data2_mean.index[-1], new_col]
+                    #get latest SRS value
+                    data1_mean.loc[data1_mean.index[-1], 'simple_rating_system'] = cbb_web_scraper.get_latest_srs(team_1)
+                    # data1_mean['simple_rating_system'].iloc[-1] = cbb_web_scraper.get_latest_srs(team_1)
                     team_1_predict_mean = self.RandForclass.predict_proba(data1_mean.iloc[-1:])
                     #TEAM 2
-                    data1_mean_change = team_1_df2023.ewm(span=ma,min_periods=ma-1).mean()
-                    data1_mean_change['game_loc'] = game_loc_team1
-                    data2_mean_change = team_2_df2023.ewm(span=ma,min_periods=ma-1).mean()
-                    data2_mean_change['game_loc'] = game_loc_team2
+                    # data1_mean_change = team_1_df2023.ewm(span=ma,min_periods=ma-1).mean()
+                    # data1_mean_change['game_loc'] = game_loc_team1
+                    # data2_mean_change = team_2_df2023.ewm(span=ma,min_periods=ma-1).mean()
+                    # data2_mean_change['game_loc'] = game_loc_team2
                     # team_1_predict_median = self.RandForclass.predict(data1_median.iloc[-1:])
                     # team_2_predict_median = self.RandForclass.predict(data2_median.iloc[-1:])
                     #Here replace opponent metrics with the features of the second team
@@ -296,22 +299,23 @@ class cbbClass():
                     team_1_ma_win.append(team_1_predict_mean[0][1])
                     team_1_ma_loss.append(team_1_predict_mean[0][0])
                 # team_2_ma.append(team_2_predict_mean[0][1])
-                print('===============================================================')
-                print(f'{team_1} win probability {round(np.mean(team_1_ma_win),4)*100}%')
+                team_1_proba = round(np.mean(team_1_ma_win),4)*100
+                team_2_proba = 100 - team_1_proba
                 # print(f'{team_2} win probability {round(np.median(team_2_predict_mean),4)*100}%')
                 # print(f'{team_2} winning: {np.mean(team_2_ma)}%')
-                print('===============================================================')
-                if np.mean(team_1_ma_win) > np.mean(team_1_ma_loss):
-                    print(f'{team_1} wins over {team_2}')
-                else:
-                    print(f'{team_2} wins over {team_1}')
                 print('===============================================================')
                 if "tod" in sys.argv[2]:
                     date_today = str(datetime.now().date()).replace("-", "")
                 elif "tom" in sys.argv[2]:
                     date_today = str(datetime.now().date() + timedelta(days=1)).replace("-", "")
                 URL = "https://www.espn.com/mens-college-basketball/schedule/_/date/" + date_today #sys argv????
+                print(f'MY prediction: {team_1}: {team_1_proba}% , {team_2}: {team_2_proba}%')
                 print(f'ESPN prediction: {cbb_web_scraper.get_espn(URL,team_1,team_2)}')
+                print('===============================================================')
+                if np.mean(team_1_ma_win) > np.mean(team_1_ma_loss):
+                    print(f'{team_1} wins over {team_2}')
+                else:
+                    print(f'{team_2} wins over {team_1}')
                 print('===============================================================')
             except Exception as e:
                 print(f'The error: {e}')

@@ -318,7 +318,10 @@ class cbbDeep():
                                 new_col = col.replace("opp_", "")
                                 data1_mean.loc[data1_mean.index[-1], col] = data2_mean.loc[data2_mean.index[-1], new_col]
                     #get latest SRS value
-                    data1_mean['simple_rating_system'].iloc[-1] = cbb_web_scraper.get_latest_srs(team_1)# float(input(f'input {team_1} current simple rating system value: '))
+                    print(data1_mean.iloc[-1:])
+                    data1_mean.loc[data1_mean.index[-1], 'simple_rating_system'] = cbb_web_scraper.get_latest_srs(team_1)
+                    print(data1_mean.iloc[-1:])
+                    # data1_mean['simple_rating_system'].iloc[-1] = cbb_web_scraper.get_latest_srs(team_1)# float(input(f'input {team_1} current simple rating system value: '))
                     #TEAM 1 Prediction
                     x_new = self.scaler.transform(data1_mean.iloc[-1:])
                     prediction = self.model.predict(x_new)
