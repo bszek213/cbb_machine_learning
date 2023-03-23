@@ -13,17 +13,16 @@ from time import sleep
 from pandas import DataFrame, concat, read_csv, isnull
 from sklearn.model_selection import train_test_split
 from sklearn.model_selection import GridSearchCV
-from sklearn.ensemble import RandomForestClassifier
+# from sklearn.ensemble import RandomForestClassifier
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sys import argv
+# from sys import argv
 import joblib
 from sklearn.metrics import confusion_matrix, f1_score, accuracy_score
 from difflib import get_close_matches
-import sys
-from datetime import datetime, timedelta
-from sklearn.metrics import roc_curve
+# from datetime import datetime, timedelta
+# from sklearn.metrics import roc_curve
 import seaborn as sns
 
 class cbbDeep():
@@ -72,8 +71,8 @@ class cbbDeep():
                     self.all_data = read_csv(join(getcwd(),'all_data_regressor.csv'))  
                 self.all_data = concat([self.all_data, final_data.dropna()])
                 if not exists(join(getcwd(),'all_data_regressor.csv')):
-                    self.all_data.to_csv(join(getcwd(),'all_data_regressor.csv'))
-                self.all_data.to_csv(join(getcwd(),'all_data_regressor.csv'))
+                    self.all_data.to_csv(join(getcwd(),'all_data_regressor.csv'),index=False)
+                self.all_data.to_csv(join(getcwd(),'all_data_regressor.csv'),index=False)
                 year_list_find.append(year)
                 print(f'year list after loop: {year_list_find}')
                 with open(join(getcwd(),'year_count.yaml'), 'w') as write_file:
@@ -157,33 +156,41 @@ class cbbDeep():
             #best params
             # Best: 0.999925 using {'alpha': 0.1, 'batch_size': 32, 'dropout_rate': 0.2,
             #  'learning_rate': 0.001, 'neurons': 16}
+            optimizer = keras.optimizers.Adam(learning_rate=0.001)
             self.model = keras.Sequential([
                     layers.Dense(16, input_shape=(self.x_no_corr.shape[1],)),
                     layers.LeakyReLU(alpha=0.1),
+                    layers.BatchNormalization(),
                     layers.Dropout(0.2),
                     layers.Dense(16),
                     layers.LeakyReLU(alpha=0.1),
+                    layers.BatchNormalization(),
                     layers.Dropout(0.2),
                     layers.Dense(16),
                     layers.LeakyReLU(alpha=0.1),
+                    layers.BatchNormalization(),
                     layers.Dropout(0.2),
                     layers.Dense(16),
                     layers.LeakyReLU(alpha=0.1),
+                    layers.BatchNormalization(),
                     layers.Dropout(0.2),
                     layers.Dense(16),
                     layers.LeakyReLU(alpha=0.1),
+                    layers.BatchNormalization(),
                     layers.Dropout(0.2),
                     layers.Dense(16),
                     layers.LeakyReLU(alpha=0.1),
+                    layers.BatchNormalization(),
                     layers.Dropout(0.2),
                     layers.Dense(1, activation='sigmoid')
                 ])
-            self.model.compile(optimizer='adam',
+            self.model.compile(optimizer=optimizer,
                 loss='binary_crossentropy',
                 metrics=['accuracy'])
             history = self.model.fit(self.x_train, self.y_train, 
-                                     epochs=50, batch_size=32, 
-                                     validation_split=0.2)
+                                     epochs=50, batch_size=32,
+                                    validation_data=(self.x_test,self.y_test))
+                                     #validation_split=0.2)
             # param_grid = {
             #     'neurons': [16, 32, 64],
             #     'learning_rate': [0.01, 0.001, 0.0001],

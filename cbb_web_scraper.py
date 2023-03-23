@@ -48,15 +48,21 @@ def get_teams_year(year_min,year_max):
 
 def html_to_df_web_scrape_cbb(URL,URL1,team,year):
     #URL = Basic data ; URL1 = Advanced stats
+    url_srs = f'https://www.sports-reference.com/cbb/schools/{team}/men/{year}-schedule.html'
     hdr = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"}
     req_1 = Request(URL,headers=hdr)
     html_1 = request.urlopen(req_1)
+    sleep(4)
     req_2 = Request(URL1,headers=hdr)
     html_2 = request.urlopen(req_2)
+    sleep(4)
+    req_3 = Request(url_srs,headers=hdr)
+    html_3 = request.urlopen(req_3)
     # while True:4700++6
         # try:
     soup_1 = BeautifulSoup(html_1, "html.parser")
     soup_2 = BeautifulSoup(html_2, "html.parser")
+    soup_3 = BeautifulSoup(html_3, "html.parser")
             # page = requests.get(URL)
             # soup = BeautifulSoup(page.content, "html.parser")
             # page1 = requests.get(URL1)
@@ -68,10 +74,13 @@ def html_to_df_web_scrape_cbb(URL,URL1,team,year):
     # table = soup_1.find(id="all_sgl-basic")
     table = soup_1.select_one('table[id^="sgl-basic"]')
     table1 = soup_2.find(id="all_sgl-advanced")
+    table3 = soup_3.find(id='div_schedule')
     tbody = table.find('tbody')
     tbody1 = table1.find('tbody')
+    tbody2 = table3.find('tbody')
     tr_body = tbody.find_all('tr')
     tr_body1 = tbody1.find_all('tr')
+    tr_body2 = tbody2.find_all('tr')
     # game_season = []
     # date_game = []
     # game_location = []
@@ -113,6 +122,12 @@ def html_to_df_web_scrape_cbb(URL,URL1,team,year):
     opp_tov= []
     opp_pf= []
     game_loc = []
+    srs = []
+    #SIMPLE RATING SYSTEM
+    for trb in tr_body2:
+        for td in trb.find_all('td'):
+            if td.get('data-stat') == "srs":
+                srs.append(td.get_text())
     #BASIC STATS - change td.get_text() to float(td.get_text())
     for trb in tr_body:
         for td in trb.find_all('td'):
@@ -260,14 +275,14 @@ def html_to_df_web_scrape_cbb(URL,URL1,team,year):
     opp_ft,opp_fta,opp_ft_pct,opp_orb,opp_trb,opp_ast,opp_stl,opp_blk,opp_tov,
     opp_pf, off_rtg,def_rtg,pace,fta_per_fga_pct,fg3a_per_fga_pct,ts_pct,
     trb_pct,ast_pct,stl_pct,blk_pct,efg_pct,tov_pct,orb_pct,ft_rate,opp_efg_pct,
-    opp_tov_pct,drb_pct,opp_ft_rate,game_loc)),
+    opp_tov_pct,drb_pct,opp_ft_rate,game_loc,srs)),
             columns =['game_result','pts','opp_pts','fg','fga',
             'fg_pct','fg3','fg3a','fg3_pct','ft','fta','ft_pct','orb','total_board','ast',
             'stl','blk','tov','pf','opp_fg','opp_fga','opp_fg_pct','opp_fg3','opp_fg3a','opp_fg3_pct',
             'opp_ft','opp_fta','opp_ft_pct','opp_orb','opp_trb','opp_ast','opp_stl','opp_blk','opp_tov',
             'opp_pf','off_rtg','def_rtg','pace','fta_per_fga_pct','fg3a_per_fga_pct','ts_pct',
             'trb_pct','ast_pct','stl_pct','blk_pct','efg_pct','tov_pct','orb_pct','ft_rate','opp_efg_pct',
-            'opp_tov_pct','drb_pct','opp_ft_rate','game_loc'])
+            'opp_tov_pct','drb_pct','opp_ft_rate','game_loc','simple_rating_system'])
 def get_espn(URL,team_1,team_2):
     team_1 = create_acr(team_1)
     team_2 = create_acr(team_2)
