@@ -16,6 +16,9 @@ from urllib.request import Request, urlopen
 from pandas import read_csv
 from numpy import where
 from re import search
+
+#TODO: CREATE A FEATURE OF opp_simple_rating_system
+
 def get_teams_year(year_min,year_max):
     #Try to redo this when 429 is not an issue
     # URL = 'https://www.sports-reference.com/cbb/schools/'
@@ -46,6 +49,22 @@ def get_teams_year(year_min,year_max):
         teams_save.append(team)
     return teams_save
 
+def get_latest_srs(team):
+    sleep(4)
+    url_srs = f'https://www.sports-reference.com/cbb/schools/{team}/men/2023-schedule.html'
+    hdr = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"}
+    req_1 = Request(url_srs,headers=hdr)
+    html_1 = request.urlopen(req_1)
+    soup_3 = BeautifulSoup(html_1, "html.parser")
+    table3 = soup_3.find(id='div_schedule')
+    tbody2 = table3.find('tbody')
+    tr_body2 = tbody2.find_all('tr')
+    srs = []
+    for trb in tr_body2:
+        for td in trb.find_all('td'):
+            if td.get('data-stat') == "srs":
+                srs.append(td.get_text())
+    return float(srs[-1])
 def html_to_df_web_scrape_cbb(URL,URL1,team,year):
     #URL = Basic data ; URL1 = Advanced stats
     url_srs = f'https://www.sports-reference.com/cbb/schools/{team}/men/{year}-schedule.html'
@@ -123,11 +142,17 @@ def html_to_df_web_scrape_cbb(URL,URL1,team,year):
     opp_pf= []
     game_loc = []
     srs = []
+    opp_srs = []
     #SIMPLE RATING SYSTEM
     for trb in tr_body2:
         for td in trb.find_all('td'):
             if td.get('data-stat') == "srs":
                 srs.append(td.get_text())
+    #SIMPLE RATING SYSTEM - OPPONENT
+    # for trb in tr_body3:
+    #     for td in trb.find_all('td'):
+    #         if td.get('data-stat') == "srs":
+    #             opp_srs.append(td.get_text())
     #BASIC STATS - change td.get_text() to float(td.get_text())
     for trb in tr_body:
         for td in trb.find_all('td'):
