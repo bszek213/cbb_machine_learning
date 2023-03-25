@@ -309,13 +309,16 @@ class cbbClass():
                 elif "tom" in sys.argv[2]:
                     date_today = str(datetime.now().date() + timedelta(days=1)).replace("-", "")
                 URL = "https://www.espn.com/mens-college-basketball/schedule/_/date/" + date_today #sys argv????
-                print(f'MY prediction: {team_1}: {team_1_proba}% , {team_2}: {team_2_proba}%')
+                print(f'MY prediction: {team_1}: {team_1_proba*100}% , {team_2}: {team_2_proba*100}%')
                 print(f'ESPN prediction: {cbb_web_scraper.get_espn(URL,team_1,team_2)}')
                 print('===============================================================')
                 if np.mean(team_1_ma_win) > np.mean(team_1_ma_loss):
                     print(f'{team_1} wins over {team_2}')
                 else:
                     print(f'{team_2} wins over {team_1}')
+                print('===============================================================')
+                print(f'{team_1} wins: {team_1_ma_win} %')
+                print(f'{team_1} loss: {team_1_ma_loss} %')
                 print('===============================================================')
             except Exception as e:
                 print(f'The error: {e}')
