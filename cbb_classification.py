@@ -207,7 +207,7 @@ class cbbClass():
                     break
                 team_2 = input('team_2: ')
                 #Game location
-                game_loc_team1 = int(input(f'{team_1} : #home = 0, away = 1, N = 2: '))
+                game_loc_team1 = int(input(f'{team_1} : home = 0, away = 1, neutral = 2: '))
                 if game_loc_team1 == 0:
                     game_loc_team2 = 1
                 elif game_loc_team1 == 1:
@@ -219,7 +219,7 @@ class cbbClass():
                 team_2  = get_close_matches(team_2,teams_sports_ref['teams'].tolist(),n=1)[0]
                 #2023 data
                 year = 2023
-                sleep(4)
+                # sleep(4)
                 basic = 'https://www.sports-reference.com/cbb/schools/' + team_1.lower() + '/' + str(year) + '-gamelogs.html'
                 adv = 'https://www.sports-reference.com/cbb/schools/' + team_1.lower() + '/' + str(year) + '-gamelogs-advanced.html'
                 team_1_df2023 = cbb_web_scraper.html_to_df_web_scrape_cbb(basic,adv,team_1.lower(),year)
@@ -254,6 +254,10 @@ class cbbClass():
                 team_1_ma_win = []
                 team_1_ma_loss = []
                 team_2_ma = []
+                #get latest SRS value
+                team_1_srs = cbb_web_scraper.get_latest_srs(team_1)
+                team_2_srs = cbb_web_scraper.get_latest_srs(team_2)
+                cbb_web_scraper.get_latest_srs(team_2)
                 for ma in tqdm(ma_range):
                     # data1_median = team_1_df2023.rolling(ma).median()
                     # data1_median['game_loc'] = game_loc_team1
@@ -269,7 +273,7 @@ class cbbClass():
                     # team_1_predict_median = self.RandForclass.predict(data1_median.iloc[-1:])
                     # team_2_predict_median = self.RandForclass.predict(data2_median.iloc[-1:])
                     #Here replace opponent metrics with the features of the second team
-                    for col in team_1_df2023.columns:
+                    for col in data1_mean.columns:
                         if "opp" in col:
                             if col == 'opp_trb':
                                 # new_col = col.replace("opp_", "")
@@ -278,7 +282,8 @@ class cbbClass():
                                 new_col = col.replace("opp_", "")
                                 data1_mean.loc[data1_mean.index[-1], col] = data2_mean.loc[data2_mean.index[-1], new_col]
                     #get latest SRS value
-                    data1_mean.loc[data1_mean.index[-1], 'simple_rating_system'] = cbb_web_scraper.get_latest_srs(team_1)
+                    data1_mean.loc[data1_mean.index[-1], 'simple_rating_system'] = team_1_srs
+                    data2_mean.loc[data2_mean.index[-1], 'simple_rating_system'] = team_2_srs 
                     # data1_mean['simple_rating_system'].iloc[-1] = cbb_web_scraper.get_latest_srs(team_1)
                     team_1_predict_mean = self.RandForclass.predict_proba(data1_mean.iloc[-1:])
                     #TEAM 2
@@ -306,12 +311,15 @@ class cbbClass():
                 # print(f'{team_2} win probability {round(np.median(team_2_predict_mean),4)*100}%')
                 # print(f'{team_2} winning: {np.mean(team_2_ma)}%')
                 print('===============================================================')
+                print(f'{team_1} SRS data: {team_1_srs}')
+                print(f'{team_2} SRS data: {team_2_srs}')
+                print('===============================================================')
                 if "tod" in sys.argv[2]:
                     date_today = str(datetime.now().date()).replace("-", "")
                 elif "tom" in sys.argv[2]:
                     date_today = str(datetime.now().date() + timedelta(days=1)).replace("-", "")
                 URL = "https://www.espn.com/mens-college-basketball/schedule/_/date/" + date_today #sys argv????
-                print(f'MY prediction: {team_1}: {team_1_proba*100}% , {team_2}: {team_2_proba*100}%')
+                print(f'MY prediction: {team_1}: {team_1_proba}% , {team_2}: {team_2_proba}%')
                 print(f'ESPN prediction: {cbb_web_scraper.get_espn(URL,team_1,team_2)}')
                 print('===============================================================')
                 if np.mean(team_1_ma_win) > np.mean(team_1_ma_loss):
@@ -319,8 +327,8 @@ class cbbClass():
                 else:
                     print(f'{team_2} wins over {team_1}')
                 print('===============================================================')
-                print(f'{team_1} wins: {team_1_ma_win} %')
-                print(f'{team_1} loss: {team_1_ma_loss} %')
+                print(f'{team_1} win probability: {team_1_ma_win} %')
+                print(f'{team_2} win probability: {team_1_ma_loss} %')
                 print('===============================================================')
             except Exception as e:
                 print(f'The error: {e}')
