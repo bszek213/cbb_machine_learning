@@ -294,6 +294,8 @@ class cbbDeep():
                 team_1_ma_win = []
                 team_1_ma_loss = []
                 team_2_ma = []
+                #get SRS
+                team_srs = cbb_web_scraper.get_latest_srs(team_1)
                 for ma in tqdm(ma_range):
                     # data1_median = team_1_df2023.rolling(ma).median()
                     # data1_median['game_loc'] = game_loc_team1
@@ -318,12 +320,12 @@ class cbbDeep():
                                 new_col = col.replace("opp_", "")
                                 data1_mean.loc[data1_mean.index[-1], col] = data2_mean.loc[data2_mean.index[-1], new_col]
                     #get latest SRS value
-                    data1_mean.loc[data1_mean.index[-1], 'simple_rating_system'] = cbb_web_scraper.get_latest_srs(team_1)
+                    data1_mean.loc[data1_mean.index[-1], 'simple_rating_system'] = team_srs
                     # data1_mean['simple_rating_system'].iloc[-1] = cbb_web_scraper.get_latest_srs(team_1)# float(input(f'input {team_1} current simple rating system value: '))
                     #TEAM 1 Prediction
                     x_new = self.scaler.transform(data1_mean.iloc[-1:])
                     prediction = self.model.predict(x_new)
-                    print(f'prediction: {prediction}')
+                    print(f'prediction: {prediction[0]*100}%')
                     probability = prediction[0]
                     if probability > 0.5:
                         team_1_count += 1
