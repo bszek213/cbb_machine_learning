@@ -25,6 +25,7 @@ import sys
 from datetime import datetime, timedelta
 from sklearn.metrics import roc_curve
 import seaborn as sns
+import cbb_regression
 """
 TODO: change the labels to be a 2x1 array of team_1 = 0, team_2 = 1.
 Use the opponent features for team_2 and then the normal features for team_1.
@@ -34,6 +35,8 @@ class cbbClass():
     def __init__(self):
         print('instantiate class cbbClass')
         self.all_data = DataFrame()
+        # if exists(join(getcwd(),'randomForestModelTuned.joblib')):
+        #     self.RandForRegressor=joblib.load("./randomForestModelTuned.joblib")
     def get_teams(self):
         year_list_find = []
         year_list = [2023,2022,2021,2019,2018,2017,2016,2015,2014,2013,2012] #,2014,2013,2012,2011,2010
@@ -74,8 +77,8 @@ class cbbClass():
                     self.all_data = read_csv(join(getcwd(),'all_data_regressor.csv'))  
                 self.all_data = concat([self.all_data, final_data.dropna()])
                 if not exists(join(getcwd(),'all_data_regressor.csv')):
-                    self.all_data.to_csv(join(getcwd(),'all_data_regressor.csv'))
-                self.all_data.to_csv(join(getcwd(),'all_data_regressor.csv'))
+                    self.all_data.to_csv(join(getcwd(),'all_data_regressor.csv'),index=False)
+                self.all_data.to_csv(join(getcwd(),'all_data_regressor.csv'),index=False)
                 year_list_find.append(year)
                 print(f'year list after loop: {year_list_find}')
                 with open(join(getcwd(),'year_count.yaml'), 'w') as write_file:
@@ -98,7 +101,7 @@ class cbbClass():
             if 'opp' in col:
                 self.all_data.drop(columns=col,inplace=True)
     def split(self):
-        self.delete_opp()
+        # self.delete_opp()
         for col in self.all_data.columns:
             if 'Unnamed' in col:
                 self.all_data.drop(columns=col,inplace=True)
@@ -150,7 +153,7 @@ class cbbClass():
             RandForclass = RandomForestClassifier()
             #Use the number of features as a stopping criterion for depth
             rows, cols = self.x_train.shape
-            cols = int(cols / 1.15) #try to avoid overfitting on depth
+            cols = int(cols / 2.5) #try to avoid overfitting on depth
             #square root of the total number of features is a good limit
             # cols = int(np.sqrt(cols))
             #parameters to tune
@@ -161,25 +164,27 @@ class cbbClass():
                 # 'min_samples_split': np.arange(2, 5, 1, dtype=int),
                 'max_features' : [1, 'sqrt', 'log2'],
                 'max_depth': np.arange(2,cols,1),
-                'min_samples_leaf': np.arange(1,3,1)
+                'min_samples_leaf': np.arange(2,4,1)
                 }
             clf_rand = GridSearchCV(RandForclass, Rand_perm, 
-                                scoring=['accuracy'],
-                                cv=10,
-                               refit='accuracy',verbose=4, n_jobs=-1)
+                                scoring=['accuracy','f1'],
+                                cv=5,
+                               refit='accuracy',
+                               verbose=4, 
+                               n_jobs=-1)
             search_rand = clf_rand.fit(self.x_train,self.y_train)
             #Write fitted and tuned model to file
             # with open('randomForestModelTuned.pkl','wb') as f:
             #     pickle.dump(search_rand,f)
             joblib.dump(search_rand, "./classifierModelTuned.joblib", compress=9)
-            print('RandomForestRegressor - best params: ',search_rand.best_params_)
+            print('RandomForestClassifier - best params: ',search_rand.best_params_)
             self.RandForclass = search_rand
             prediction = self.RandForclass.predict(self.x_test)
             print(confusion_matrix(self.y_test, prediction))# Display accuracy score
             print(f'Model accuracy: {accuracy_score(self.y_test, prediction)}')# Display F1 score
             # print(f1_score(self.y_test, prediction))
         else:
-            print('Load tuned Random Forest Regressor')
+            print('Load tuned Random Forest Classifier')
             # load RandomForestModel
             self.RandForclass=joblib.load("./classifierModelTuned.joblib")
             prediction = self.RandForclass.predict(self.x_test)
@@ -214,9 +219,11 @@ class cbbClass():
                 team_2  = get_close_matches(team_2,teams_sports_ref['teams'].tolist(),n=1)[0]
                 #2023 data
                 year = 2023
+                sleep(4)
                 basic = 'https://www.sports-reference.com/cbb/schools/' + team_1.lower() + '/' + str(year) + '-gamelogs.html'
                 adv = 'https://www.sports-reference.com/cbb/schools/' + team_1.lower() + '/' + str(year) + '-gamelogs-advanced.html'
                 team_1_df2023 = cbb_web_scraper.html_to_df_web_scrape_cbb(basic,adv,team_1.lower(),year)
+                sleep(4) #I get get banned for a small period of time if I do not do this
                 basic = 'https://www.sports-reference.com/cbb/schools/' + team_2.lower() + '/' + str(year) + '-gamelogs.html'
                 adv = 'https://www.sports-reference.com/cbb/schools/' + team_2.lower() + '/' + str(year) + '-gamelogs-advanced.html'
                 team_2_df2023 = cbb_web_scraper.html_to_df_web_scrape_cbb(basic,adv,team_2.lower(),year)
@@ -228,56 +235,92 @@ class cbbClass():
                 team_2_df2023.replace('', np.nan, inplace=True)
                 team_2_df2023.dropna(inplace=True)
                 #Remove pts and game result
-                for col in team_1_df2023.columns:
-                    if 'opp' in col:
-                        team_1_df2023.drop(columns=col,inplace=True)
-                for col in team_2_df2023.columns:
-                    if 'opp' in col:
-                        team_2_df2023.drop(columns=col,inplace=True)
+                # for col in team_1_df2023.columns:
+                #     if 'opp' in col:
+                #         team_1_df2023.drop(columns=col,inplace=True)
+                # for col in team_2_df2023.columns:
+                #     if 'opp' in col:
+                #         team_2_df2023.drop(columns=col,inplace=True)
                 team_1_df2023.drop(columns=['game_result'],inplace=True)
                 team_2_df2023.drop(columns=['game_result'],inplace=True)
                 #Drop the correlated features
                 team_1_df2023.drop(columns=self.drop_cols, inplace=True)
                 team_2_df2023.drop(columns=self.drop_cols, inplace=True)
-                ma_range = np.arange(2,7,1) #2 was the most correct value for mean and 8 was the best for the median; chose 9 for tiebreaking
+                ma_range = np.arange(2,5,1) #2 was the most correct value for mean and 8 was the best for the median; chose 9 for tiebreaking
                 team_1_count = 0
                 team_2_count = 0
                 team_1_count_mean = 0
                 team_2_count_mean = 0
-                team_1_ma = []
+                team_1_ma_win = []
+                team_1_ma_loss = []
                 team_2_ma = []
                 for ma in tqdm(ma_range):
-                    data1_median = team_1_df2023.rolling(ma).median()
-                    data1_median['game_loc'] = game_loc_team1
-                    data2_median = team_2_df2023.rolling(ma).median()
-                    data2_median['game_loc'] = game_loc_team2
+                    # data1_median = team_1_df2023.rolling(ma).median()
+                    # data1_median['game_loc'] = game_loc_team1
+                    # data2_median = team_2_df2023.rolling(ma).median()
+                    # data2_median['game_loc'] = game_loc_team2
                     # data1_mean_old = team_1_df2023.rolling(ma).mean()
                     # data2_mean_old = team_2_df2023.rolling(ma).mean()
+                    # TEAM 1
                     data1_mean = team_1_df2023.ewm(span=ma,min_periods=ma-1).mean()
                     data1_mean['game_loc'] = game_loc_team1
                     data2_mean = team_2_df2023.ewm(span=ma,min_periods=ma-1).mean()
                     data2_mean['game_loc'] = game_loc_team2
                     # team_1_predict_median = self.RandForclass.predict(data1_median.iloc[-1:])
                     # team_2_predict_median = self.RandForclass.predict(data2_median.iloc[-1:])
+                    #Here replace opponent metrics with the features of the second team
+                    for col in team_1_df2023.columns:
+                        if "opp" in col:
+                            if col == 'opp_trb':
+                                # new_col = col.replace("opp_", "")
+                                data1_mean.loc[data1_mean.index[-1], 'opp_trb'] = data2_mean.loc[data2_mean.index[-1], 'total_board']
+                            else:
+                                new_col = col.replace("opp_", "")
+                                data1_mean.loc[data1_mean.index[-1], col] = data2_mean.loc[data2_mean.index[-1], new_col]
+                    #get latest SRS value
+                    data1_mean.loc[data1_mean.index[-1], 'simple_rating_system'] = cbb_web_scraper.get_latest_srs(team_1)
+                    # data1_mean['simple_rating_system'].iloc[-1] = cbb_web_scraper.get_latest_srs(team_1)
                     team_1_predict_mean = self.RandForclass.predict_proba(data1_mean.iloc[-1:])
-                    team_2_predict_mean = self.RandForclass.predict_proba(data2_mean.iloc[-1:])
-                    # both = self.RandForclass.predict_proba(concat([data1_mean.iloc[-1:], data2_mean.iloc[-1:]]))
-                    team_1_ma.append(team_1_predict_mean[0][1])
-                    team_2_ma.append(team_2_predict_mean[0][1])
+                    #TEAM 2
+                    # data1_mean_change = team_1_df2023.ewm(span=ma,min_periods=ma-1).mean()
+                    # data1_mean_change['game_loc'] = game_loc_team1
+                    # data2_mean_change = team_2_df2023.ewm(span=ma,min_periods=ma-1).mean()
+                    # data2_mean_change['game_loc'] = game_loc_team2
+                    # team_1_predict_median = self.RandForclass.predict(data1_median.iloc[-1:])
+                    # team_2_predict_median = self.RandForclass.predict(data2_median.iloc[-1:])
+                    #Here replace opponent metrics with the features of the second team
+                    # for col in team_2_df2023.columns:
+                    #     if "opp" in col:
+                    #         if col == 'opp_trb':
+                    #             # new_col = col.replace("opp_", "")
+                    #             data2_mean_change.loc[data2_mean_change.index[-1], 'opp_trb'] = data1_mean_change.loc[data1_mean_change.index[-1], 'total_board']
+                    #         else:
+                    #             new_col = col.replace("opp_", "")
+                    #             data2_mean_change.loc[data2_mean_change.index[-1], col] = data1_mean_change.loc[data1_mean_change.index[-1], new_col]
+                    # team_2_predict_mean = self.RandForclass.predict_proba(data2_mean_change.iloc[-1:])
+                    team_1_ma_win.append(team_1_predict_mean[0][1])
+                    team_1_ma_loss.append(team_1_predict_mean[0][0])
+                # team_2_ma.append(team_2_predict_mean[0][1])
+                team_1_proba = round(np.mean(team_1_ma_win),4)*100
+                team_2_proba = 100 - team_1_proba
+                # print(f'{team_2} win probability {round(np.median(team_2_predict_mean),4)*100}%')
+                # print(f'{team_2} winning: {np.mean(team_2_ma)}%')
                 print('===============================================================')
-                print(f'{team_1} winning: {np.mean(team_1_ma)}%')
-                print(f'{team_2} winning: {np.mean(team_2_ma)}%')
-                print('===============================================================')
-                if np.mean(team_1_ma) > np.mean(team_2_ma):
-                    print(f'{team_1} wins')
-                elif np.mean(team_1_ma) < np.mean(team_2_ma):
-                    print(f'{team_2} wins')
                 if "tod" in sys.argv[2]:
                     date_today = str(datetime.now().date()).replace("-", "")
                 elif "tom" in sys.argv[2]:
                     date_today = str(datetime.now().date() + timedelta(days=1)).replace("-", "")
                 URL = "https://www.espn.com/mens-college-basketball/schedule/_/date/" + date_today #sys argv????
+                print(f'MY prediction: {team_1}: {team_1_proba*100}% , {team_2}: {team_2_proba*100}%')
                 print(f'ESPN prediction: {cbb_web_scraper.get_espn(URL,team_1,team_2)}')
+                print('===============================================================')
+                if np.mean(team_1_ma_win) > np.mean(team_1_ma_loss):
+                    print(f'{team_1} wins over {team_2}')
+                else:
+                    print(f'{team_2} wins over {team_1}')
+                print('===============================================================')
+                print(f'{team_1} wins: {team_1_ma_win} %')
+                print(f'{team_1} loss: {team_1_ma_loss} %')
                 print('===============================================================')
             except Exception as e:
                 print(f'The error: {e}')
