@@ -77,8 +77,8 @@ class cbbClass():
                     self.all_data = read_csv(join(getcwd(),'all_data_regressor.csv'))  
                 self.all_data = concat([self.all_data, final_data.dropna()])
                 if not exists(join(getcwd(),'all_data_regressor.csv')):
-                    self.all_data.to_csv(join(getcwd(),'all_data_regressor.csv'))
-                self.all_data.to_csv(join(getcwd(),'all_data_regressor.csv'))
+                    self.all_data.to_csv(join(getcwd(),'all_data_regressor.csv'),index=False)
+                self.all_data.to_csv(join(getcwd(),'all_data_regressor.csv'),index=False)
                 year_list_find.append(year)
                 print(f'year list after loop: {year_list_find}')
                 with open(join(getcwd(),'year_count.yaml'), 'w') as write_file:
@@ -164,12 +164,14 @@ class cbbClass():
                 # 'min_samples_split': np.arange(2, 5, 1, dtype=int),
                 'max_features' : [1, 'sqrt', 'log2'],
                 'max_depth': np.arange(2,cols,1),
-                'min_samples_leaf': np.arange(1,3,1)
+                'min_samples_leaf': np.arange(2,4,1)
                 }
             clf_rand = GridSearchCV(RandForclass, Rand_perm, 
                                 scoring=['accuracy','f1'],
                                 cv=5,
-                               refit='accuracy',verbose=4, n_jobs=6)
+                               refit='accuracy',
+                               verbose=4, 
+                               n_jobs=-1)
             search_rand = clf_rand.fit(self.x_train,self.y_train)
             #Write fitted and tuned model to file
             # with open('randomForestModelTuned.pkl','wb') as f:

@@ -16,7 +16,7 @@ from urllib.request import Request, urlopen
 from pandas import read_csv
 from numpy import where
 from re import search
-
+from difflib import get_close_matches
 #TODO: CREATE A FEATURE OF opp_simple_rating_system
 
 def get_teams_year(year_min,year_max):
@@ -142,18 +142,21 @@ def html_to_df_web_scrape_cbb(URL,URL1,team,year):
     opp_pf= []
     game_loc = []
     srs = []
-    opp_srs = []
+    # opp_srs = []
     #SIMPLE RATING SYSTEM
+    # teams_sports_ref = read_csv('teams_sports_ref_format.csv')
     for trb in tr_body2:
         for td in trb.find_all('td'):
+            # if td.get('data-stat') == 'opp_name':
+            #     get_close_matches(td.get_text(),teams_sports_ref['teams'].tolist(),n=1)[0]
+            #     print(td.get_text())
             if td.get('data-stat') == "srs":
-                srs.append(td.get_text())
-    #SIMPLE RATING SYSTEM - OPPONENT
-    # for trb in tr_body3:
-    #     for td in trb.find_all('td'):
-    #         if td.get('data-stat') == "srs":
-    #             opp_srs.append(td.get_text())
-    #BASIC STATS - change td.get_text() to float(td.get_text())
+                if td.get_text() == '':
+                    srs.append(nan)
+                else:
+                    srs.append(td.get_text())
+    #SIMPLE RATING SYSTEM - OPPONENT ?
+    #BASIC STATS - change td.get_text() to float(td.get_text()) ?
     for trb in tr_body:
         for td in trb.find_all('td'):
             if td.get('data-stat') == "game_location":
@@ -165,7 +168,7 @@ def html_to_df_web_scrape_cbb(URL,URL1,team,year):
                 elif td.get_text() == '':
                     game_loc.append(0)
             if td.get('data-stat') == "game_result":
-                if td.get_text() == 'W':
+                if 'W' in td.get_text():
                     game_result.append(1)
                 else:
                     game_result.append(0)

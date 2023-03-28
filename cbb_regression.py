@@ -71,8 +71,8 @@ class cbb_regressor():
                     self.all_data = read_csv(join(getcwd(),'all_data_regressor.csv'))  
                 self.all_data = concat([self.all_data, final_data.dropna()])
                 if not exists(join(getcwd(),'all_data_regressor.csv')):
-                    self.all_data.to_csv(join(getcwd(),'all_data_regressor.csv'))
-                self.all_data.to_csv(join(getcwd(),'all_data_regressor.csv'))
+                    self.all_data.to_csv(join(getcwd(),'all_data_regressor.csv'),index=False)
+                self.all_data.to_csv(join(getcwd(),'all_data_regressor.csv'),index=False)
                 year_list_find.append(year)
                 print(f'year list after loop: {year_list_find}')
                 with open(join(getcwd(),'year_count.yaml'), 'w') as write_file:
@@ -95,7 +95,7 @@ class cbb_regressor():
             if 'opp' in col:
                 self.all_data.drop(columns=col,inplace=True)
     def split(self):
-        self.delete_opp()
+        # self.delete_opp()
         for col in self.all_data.columns:
             if 'Unnamed' in col:
                 self.all_data.drop(columns=col,inplace=True)
@@ -147,7 +147,7 @@ class cbb_regressor():
             RandForclass = RandomForestRegressor()
             #Use the number of features as a stopping criterion for depth
             rows, cols = self.x_train.shape
-            cols = int(cols / 1.15) #try to avoid overfitting on depth
+            cols = int(cols / 1.18) #try to avoid overfitting on depth
             #square root of the total number of features is a good limit
             # cols = int(np.sqrt(cols))
             #parameters to tune
@@ -171,7 +171,7 @@ class cbb_regressor():
             # 'normalized_mutual_info_score', 'precision', 'precision_macro', 'precision_micro', 'precision_samples', 'precision_weighted', 'r2', 'rand_score', 'recall', 'recall_macro', 'recall_micro', 'recall_samples', 'recall_weighted', 'roc_auc', 'roc_auc_ovo', 'roc_auc_ovo_weighted', 'roc_auc_ovr', 'roc_auc_ovr_weighted', 'top_k_accuracy', 'v_measure_score']
             clf_rand = GridSearchCV(RandForclass, Rand_perm, 
                                 scoring=['neg_root_mean_squared_error','explained_variance'],
-                                cv=10,
+                                cv=5,
                                refit='neg_root_mean_squared_error',verbose=4, n_jobs=-1)
             #save
             search_rand = clf_rand.fit(self.x_train,self.y_train)
@@ -245,14 +245,14 @@ class cbb_regressor():
                 self.pts_team_2 = team_2_df2023['pts'].astype(float)
                 self.team_2_name = team_2
                 #Remove pts and game result
-                for col in team_1_df2023.columns:
-                    if 'opp' in col:
-                        team_1_df2023.drop(columns=col,inplace=True)
-                for col in team_2_df2023.columns:
-                    if 'opp' in col:
-                        team_2_df2023.drop(columns=col,inplace=True)
-                team_1_df2023.drop(columns=['game_result','pts'],inplace=True)
-                team_2_df2023.drop(columns=['game_result','pts'],inplace=True)
+                # for col in team_1_df2023.columns:
+                #     if 'opp' in col:
+                #         team_1_df2023.drop(columns=col,inplace=True)
+                # for col in team_2_df2023.columns:
+                #     if 'opp' in col:
+                #         team_2_df2023.drop(columns=col,inplace=True)
+                # team_1_df2023.drop(columns=['game_result','pts'],inplace=True)
+                # team_2_df2023.drop(columns=['game_result','pts'],inplace=True)
                 #Drop the correlated features
                 team_1_df2023.drop(columns=self.drop_cols, inplace=True)
                 team_2_df2023.drop(columns=self.drop_cols, inplace=True)
@@ -293,6 +293,36 @@ class cbb_regressor():
                     data1_mean['game_loc'] = game_loc_team1
                     data2_mean = team_2_df2023.ewm(span=ma,min_periods=ma-1).mean()
                     data2_mean['game_loc'] = game_loc_team2
+                    for col in team_1_df2023.columns:
+                        if "opp" in col:
+                            if col == 'opp_trb':
+                                # new_col = col.replace("opp_", "")
+                                data1_mean.loc[data1_mean.index[-1], 'opp_trb'] = data2_mean.loc[data2_mean.index[-1], 'total_board']
+                                data2_mean.loc[data1_mean.index[-1], 'opp_trb'] = data1_mean.loc[data1_mean.index[-1], 'total_board']
+
+                                data1_median.loc[data1_median.index[-1], 'opp_trb'] = data2_median.loc[data2_median.index[-1], 'total_board']
+                                data2_median.loc[data1_median.index[-1], 'opp_trb'] = data1_median.loc[data1_median.index[-1], 'total_board']
+                            else:
+                                new_col = col.replace("opp_", "")
+                                data1_mean.loc[data1_mean.index[-1], col] = data2_mean.loc[data2_mean.index[-1], new_col]
+                                data2_mean.loc[data1_mean.index[-1], col] = data1_mean.loc[data1_mean.index[-1], new_col]
+
+                                data1_median.loc[data1_median.index[-1], col] = data2_median.loc[data2_mean.index[-1], new_col]
+                                data2_median.loc[data1_mean.index[-1], col] = data1_median.loc[data1_median.index[-1], new_col]
+
+                    #Drop game result and points features
+                    data1_median.drop(columns=['game_result','pts'],inplace=True)
+                    data2_median.drop(columns=['game_result','pts'],inplace=True)
+                    data1_mean.drop(columns=['game_result','pts'],inplace=True)
+                    data2_mean.drop(columns=['game_result','pts'],inplace=True)
+                    # Get the latest simple rating system for both teams
+                    team_1_srs = cbb_web_scraper.get_latest_srs(team_1)
+                    team_2_srs = cbb_web_scraper.get_latest_srs(team_2)
+                    data1_mean.loc[data1_mean.index[-1], 'simple_rating_system'] = team_1_srs
+                    data2_mean.loc[data1_mean.index[-1], 'simple_rating_system'] = team_2_srs
+                    data1_median.loc[data1_mean.index[-1], 'simple_rating_system'] = team_1_srs
+                    data2_median.loc[data1_mean.index[-1], 'simple_rating_system'] = team_2_srs
+                    #Get current predictions for both teams
                     team_1_predict_median = self.RandForRegressor.predict(data1_median.iloc[-1:])
                     team_2_predict_median = self.RandForRegressor.predict(data2_median.iloc[-1:])
                     team_1_predict_mean = self.RandForRegressor.predict(data1_mean.iloc[-1:])
@@ -367,9 +397,10 @@ class cbb_regressor():
     def feature_importances_random_forest(self):
         importances = self.RandForRegressor.best_estimator_.feature_importances_
         indices = np.argsort(importances)
-        plt.figure()
+        plt.figure(figsize=(12,10))
         plt.title('Feature Importances Random Forest')
-        plt.barh(range(len(indices)), importances[indices], color='k', align='center')
+        # plt.barh(range(len(indices)), importances[indices], color='k', align='center')
+        sns.barplot(x=importances[indices], y=[self.x_test.columns[i] for i in indices], color='k')
         plt.yticks(range(len(indices)), [self.x_test.columns[i] for i in indices])
         plt.xlabel('Relative Importance')
         plt.tight_layout()
