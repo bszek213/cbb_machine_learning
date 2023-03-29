@@ -1,9 +1,9 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-College Basketball Predictions via classification and probability with ESPN 
-@author: brianszekely
-"""
+#deep learning implementation
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras import layers
+from tensorflow.keras.wrappers.scikit_learn import KerasClassifier
+from sklearn.preprocessing import StandardScaler
 import cbb_web_scraper
 from os import getcwd
 from os.path import join, exists 
@@ -13,25 +13,21 @@ from time import sleep
 from pandas import DataFrame, concat, read_csv, isnull
 from sklearn.model_selection import train_test_split
 from sklearn.model_selection import GridSearchCV
-from sklearn.ensemble import RandomForestClassifier
+# from sklearn.ensemble import RandomForestClassifier
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sys import argv
+# from sys import argv
 import joblib
 from sklearn.metrics import confusion_matrix, f1_score, accuracy_score
 from difflib import get_close_matches
-import sys
-from datetime import datetime, timedelta
-from sklearn.metrics import roc_curve
+# from datetime import datetime, timedelta
+# from sklearn.metrics import roc_curve
 import seaborn as sns
-import cbb_regression
-"""
-TODO: change the labels to be a 2x1 array of team_1 = 0, team_2 = 1.
-Use the opponent features for team_2 and then the normal features for team_1.
-Then I can compare the probability of team_1 beating team_2
-"""
-class cbbClass():
+
+#TODO: CREATE A FEATURE OF opp_simple_rating_system
+
+class cbbDeep():
     def __init__(self):
         print('instantiate class cbbClass')
         self.all_data = DataFrame()
@@ -93,27 +89,24 @@ class cbbClass():
         for col in self.all_data.columns:
             self.all_data[col].replace('', np.nan, inplace=True)
             self.all_data[col] = self.all_data[col].astype(float)
-    def delete_opp(self):
-        """
-        Drop any opponent data, as it may not be helpful when coming to prediction. Hard to estimate with running average
-        """
-        for col in self.all_data.columns:
-            if 'opp' in col:
-                self.all_data.drop(columns=col,inplace=True)
     def split(self):
         # self.delete_opp()
         for col in self.all_data.columns:
             if 'Unnamed' in col:
                 self.all_data.drop(columns=col,inplace=True)
         self.convert_to_float()
-        self.y = self.all_data['game_result'].astype(int)
-        self.x = self.all_data.drop(columns=['game_result'])
+        self.y = self.all_data['pts'].astype(float)
+        self.x = self.all_data.drop(columns=['game_result','pts'])
         self.pre_process()
         #Dropna and remove all data from subsequent y data
         real_values = ~self.x_no_corr.isna().any(axis=1)
         self.x_no_corr.dropna(inplace=True)
         self.y = self.y.loc[real_values]
         self.x_train, self.x_test, self.y_train, self.y_test = train_test_split(self.x_no_corr, self.y, train_size=0.8)
+        # normalize data
+        self.scaler = StandardScaler()
+        self.x_train = self.scaler.fit_transform(self.x_train)
+        self.x_test = self.scaler.transform(self.x_test)
     def pre_process(self):
         # Remove features with a correlation coef greater than 0.85
         corr_matrix = np.abs(self.x.astype(float).corr())
@@ -122,6 +115,7 @@ class cbbClass():
         self.drop_cols = to_drop
         self.x_no_corr = self.x.drop(columns=to_drop)
         cols = self.x_no_corr.columns
+        self.drop_cols.append('game_result')
         print(f'Columns dropped  >= 0.90: {to_drop}')
         #Drop samples that are outliers 
         print(f'old feature dataframe shape before outlier removal: {self.x_no_corr.shape}')
@@ -142,72 +136,92 @@ class cbbClass():
         self.x_no_corr.drop(columns=['level_0','index'],inplace = True)
         print(f'new feature dataframe shape after outlier removal: {self.x_no_corr.shape}')
         top_corr_features = corr_matrix.index
-        plt.figure(figsize=(20,20))
-        sns.heatmap(corr_matrix[top_corr_features],annot=True,cmap="RdYlGn")    
-        plt.tight_layout()
-        plt.savefig('correlations_class.png',dpi=250)
-        plt.close()
-    def random_forest_analysis(self):
-        if argv[1] == 'tune':
-            #RANDOM FOREST REGRESSOR
-            RandForclass = RandomForestClassifier()
-            #Use the number of features as a stopping criterion for depth
-            rows, cols = self.x_train.shape
-            cols = int(cols / 2.5) #try to avoid overfitting on depth
-            #square root of the total number of features is a good limit
-            # cols = int(np.sqrt(cols))
-            #parameters to tune
-            #increasing min_samples_leaf, this will reduce overfitting
-            Rand_perm = {
-                'criterion' : ["gini","entropy"], #absolute_error - takes forever to run
-                'n_estimators': range(300,500,100),
-                # 'min_samples_split': np.arange(2, 5, 1, dtype=int),
-                'max_features' : [1, 'sqrt', 'log2'],
-                'max_depth': np.arange(2,cols,1),
-                'min_samples_leaf': np.arange(2,4,1)
-                }
-            clf_rand = GridSearchCV(RandForclass, Rand_perm, 
-                                scoring=['accuracy','f1'],
-                                cv=5,
-                               refit='accuracy',
-                               verbose=4, 
-                               n_jobs=-1)
-            search_rand = clf_rand.fit(self.x_train,self.y_train)
-            #Write fitted and tuned model to file
-            # with open('randomForestModelTuned.pkl','wb') as f:
-            #     pickle.dump(search_rand,f)
-            joblib.dump(search_rand, "./classifierModelTuned.joblib", compress=9)
-            print('RandomForestClassifier - best params: ',search_rand.best_params_)
-            self.RandForclass = search_rand
-            prediction = self.RandForclass.predict(self.x_test)
-            print(confusion_matrix(self.y_test, prediction))# Display accuracy score
-            print(f'Model accuracy: {accuracy_score(self.y_test, prediction)}')# Display F1 score
-            # print(f1_score(self.y_test, prediction))
+    def create_model(self, neurons=32, learning_rate=0.001, dropout_rate=0.2, alpha=0.1):
+        model = keras.Sequential([
+            layers.Dense(neurons, input_shape=(self.x_no_corr.shape[1],)),
+            layers.LeakyReLU(alpha=alpha),
+            layers.Dropout(dropout_rate),
+            layers.Dense(neurons),
+            layers.LeakyReLU(alpha=alpha),
+            layers.Dropout(dropout_rate),
+            layers.Dense(neurons),
+            layers.LeakyReLU(alpha=alpha),
+            layers.Dropout(dropout_rate),
+            layers.Dense(1, activation='sigmoid')
+        ])
+        optimizer = keras.optimizers.Adam(learning_rate=learning_rate)
+        model.compile(optimizer=optimizer, loss='binary_crossentropy', metrics=['accuracy'])
+        return model
+    def deep_learn(self):
+        if exists('deep_learning_regressor.h5'):
+            self.model = keras.models.load_model('deep_learning_regressor.h5')
         else:
-            print('Load tuned Random Forest Classifier')
-            # load RandomForestModel
-            self.RandForclass=joblib.load("./classifierModelTuned.joblib")
-            prediction = self.RandForclass.predict(self.x_test)
-            print(confusion_matrix(self.y_test, prediction))# Display accuracy score
-            print(f'Model accuracy: {accuracy_score(self.y_test, prediction)}')# Display F1 score
-            # print(f1_score(self.y_test, prediction))
-        y_proba = self.RandForclass.predict_proba(self.x_test)[:, 1]
-        fpr, tpr, thresholds = roc_curve(self.y_test, y_proba)
-        plt.plot(fpr, tpr)
-        plt.xlabel('False Positive Rate')
-        plt.ylabel('True Positive Rate')
-        plt.title('ROC Curve')
-        plt.savefig('ROC_curve_class.png',dpi=300)
+            optimizer = keras.optimizers.Adam(learning_rate=0.001)
+            self.model = keras.Sequential([
+                layers.Dense(16, input_shape=(self.x_no_corr.shape[1],)),
+                layers.LeakyReLU(alpha=0.1),
+                layers.BatchNormalization(),
+                layers.Dropout(0.2),
+                layers.Dense(16),
+                layers.LeakyReLU(alpha=0.1),
+                layers.BatchNormalization(),
+                layers.Dropout(0.2),
+                layers.Dense(16),
+                layers.LeakyReLU(alpha=0.1),
+                layers.BatchNormalization(),
+                layers.Dropout(0.2),
+                layers.Dense(16),
+                layers.LeakyReLU(alpha=0.1),
+                layers.BatchNormalization(),
+                layers.Dropout(0.2),
+                layers.Dense(16),
+                layers.LeakyReLU(alpha=0.1),
+                layers.BatchNormalization(),
+                layers.Dropout(0.2),
+                layers.Dense(16),
+                layers.LeakyReLU(alpha=0.1),
+                layers.BatchNormalization(),
+                layers.Dropout(0.2),
+                layers.Dense(1)
+            ])
+            self.model.compile(optimizer=optimizer,
+                loss='mean_squared_error',
+                metrics=['mean_absolute_error'])
+            history = self.model.fit(self.x_train, self.y_train, 
+                                    epochs=50, batch_size=32,
+                                    validation_data=(self.x_test,self.y_test))
+
+            self.model.save('deep_learning_regressor.h5')
+            # plt.figure()
+            # plt.plot(history.history['accuracy'], label='training accuracy')
+            # plt.plot(history.history['val_accuracy'], label='validation accuracy')
+            # plt.title('Accuracy History')
+            # plt.xlabel('Epoch')
+            # plt.ylabel('Accuracy')
+            # plt.legend()
+            # plt.savefig('Accuracy.png',dpi=300)
+            # plt.close()
+
+            # plot loss history
+            plt.figure()
+            plt.plot(history.history['loss'], label='training loss')
+            plt.plot(history.history['val_loss'], label='validation loss')
+            plt.title('Loss History')
+            plt.xlabel('Epoch')
+            plt.ylabel('Loss')
+            plt.legend()
+            plt.savefig('Loss.png',dpi=300)
+            plt.close()
     def predict_two_teams(self):
         teams_sports_ref = read_csv('teams_sports_ref_format.csv')
         while True:
-            try:
+            # try:
                 team_1 = input('team_1: ')
                 if team_1 == 'exit':
                     break
                 team_2 = input('team_2: ')
                 #Game location
-                game_loc_team1 = int(input(f'{team_1} : home = 0, away = 1, neutral = 2: '))
+                game_loc_team1 = int(input(f'{team_1} : #home = 0, away = 1, N = 2: '))
                 if game_loc_team1 == 0:
                     game_loc_team2 = 1
                 elif game_loc_team1 == 1:
@@ -219,7 +233,7 @@ class cbbClass():
                 team_2  = get_close_matches(team_2,teams_sports_ref['teams'].tolist(),n=1)[0]
                 #2023 data
                 year = 2023
-                # sleep(4)
+                sleep(4)
                 basic = 'https://www.sports-reference.com/cbb/schools/' + team_1.lower() + '/' + str(year) + '-gamelogs.html'
                 adv = 'https://www.sports-reference.com/cbb/schools/' + team_1.lower() + '/' + str(year) + '-gamelogs-advanced.html'
                 team_1_df2023 = cbb_web_scraper.html_to_df_web_scrape_cbb(basic,adv,team_1.lower(),year)
@@ -241,9 +255,8 @@ class cbbClass():
                 # for col in team_2_df2023.columns:
                 #     if 'opp' in col:
                 #         team_2_df2023.drop(columns=col,inplace=True)
-                team_1_df2023.drop(columns=['game_result'],inplace=True)
-                team_2_df2023.drop(columns=['game_result'],inplace=True)
                 #Drop the correlated features
+                # self.drop_cols.remove('game_result')
                 team_1_df2023.drop(columns=self.drop_cols, inplace=True)
                 team_2_df2023.drop(columns=self.drop_cols, inplace=True)
                 ma_range = np.arange(2,5,1) #2 was the most correct value for mean and 8 was the best for the median; chose 9 for tiebreaking
@@ -254,9 +267,11 @@ class cbbClass():
                 team_1_ma_win = []
                 team_1_ma_loss = []
                 team_2_ma = []
-                #get latest SRS value
-                team_1_srs = cbb_web_scraper.get_latest_srs(team_1)
-                team_2_srs = cbb_web_scraper.get_latest_srs(team_2)
+                #get SRS
+                team_srs = cbb_web_scraper.get_latest_srs(team_1)
+                team_srs_2 = cbb_web_scraper.get_latest_srs(team_2)
+                values_team1 = []
+                values_team2 = []
                 for ma in tqdm(ma_range):
                     # data1_median = team_1_df2023.rolling(ma).median()
                     # data1_median['game_loc'] = game_loc_team1
@@ -272,7 +287,7 @@ class cbbClass():
                     # team_1_predict_median = self.RandForclass.predict(data1_median.iloc[-1:])
                     # team_2_predict_median = self.RandForclass.predict(data2_median.iloc[-1:])
                     #Here replace opponent metrics with the features of the second team
-                    for col in data1_mean.columns:
+                    for col in team_1_df2023.columns:
                         if "opp" in col:
                             if col == 'opp_trb':
                                 # new_col = col.replace("opp_", "")
@@ -281,15 +296,61 @@ class cbbClass():
                                 new_col = col.replace("opp_", "")
                                 data1_mean.loc[data1_mean.index[-1], col] = data2_mean.loc[data2_mean.index[-1], new_col]
                     #get latest SRS value
-                    data1_mean.loc[data1_mean.index[-1], 'simple_rating_system'] = team_1_srs
-                    data2_mean.loc[data2_mean.index[-1], 'simple_rating_system'] = team_2_srs 
-                    # data1_mean['simple_rating_system'].iloc[-1] = cbb_web_scraper.get_latest_srs(team_1)
-                    team_1_predict_mean = self.RandForclass.predict_proba(data1_mean.iloc[-1:])
-                    #TEAM 2
+                    data1_mean.loc[data1_mean.index[-1], 'simple_rating_system'] = team_srs
+                    # data1_mean['simple_rating_system'].iloc[-1] = cbb_web_scraper.get_latest_srs(team_1)# float(input(f'input {team_1} current simple rating system value: '))
+                    #TEAM 1 Prediction
+                    #Drop y-value
+                    data1_mean.drop(columns=['pts'],inplace=True)
+                    x_new = self.scaler.transform(data1_mean.iloc[-1:])
+                    prediction = self.model.predict(x_new)
+                    print(f'prediction: {prediction[0][0]}')
+                    values_team1.append(prediction)
+                for ma in tqdm(ma_range):
+                    # data1_median = team_1_df2023.rolling(ma).median()
+                    # data1_median['game_loc'] = game_loc_team1
+                    # data2_median = team_2_df2023.rolling(ma).median()
+                    # data2_median['game_loc'] = game_loc_team2
+                    # data1_mean_old = team_1_df2023.rolling(ma).mean()
+                    # data2_mean_old = team_2_df2023.rolling(ma).mean()
+                    # TEAM 1
+                    data1_mean = team_1_df2023.ewm(span=ma,min_periods=ma-1).mean()
+                    data1_mean['game_loc'] = game_loc_team1
+                    data2_mean = team_2_df2023.ewm(span=ma,min_periods=ma-1).mean()
+                    data2_mean['game_loc'] = game_loc_team2
+                    # team_1_predict_median = self.RandForclass.predict(data1_median.iloc[-1:])
+                    # team_2_predict_median = self.RandForclass.predict(data2_median.iloc[-1:])
+                    #Here replace opponent metrics with the features of the second team
+                    for col in team_1_df2023.columns:
+                        if "opp" in col:
+                            if col == 'opp_trb':
+                                # new_col = col.replace("opp_", "")
+                                data2_mean.loc[data2_mean.index[-1], 'opp_trb'] = data1_mean.loc[data1_mean.index[-1], 'total_board']
+                            else:
+                                new_col = col.replace("opp_", "")
+                                data2_mean.loc[data2_mean.index[-1], col] = data1_mean.loc[data1_mean.index[-1], new_col]
+                    #get latest SRS value
+                    data2_mean.loc[data2_mean.index[-1], 'simple_rating_system'] = team_srs_2
+                    # data1_mean['simple_rating_system'].iloc[-1] = cbb_web_scraper.get_latest_srs(team_1)# float(input(f'input {team_1} current simple rating system value: '))
+                    #TEAM 1 Prediction
+                    #Drop y-value
+                    data2_mean.drop(columns=['pts'],inplace=True)
+                    x_new = self.scaler.transform(data2_mean.iloc[-1:])
+                    prediction = self.model.predict(x_new)
+                    print(f'prediction: {prediction[0][0]}')
+                    values_team2.append(prediction)
+                    # if probability > 0.5:
+                    #     team_1_count += 1
+                    # elif probability < 0.5:
+                    #     team_2_count += 1
+                    # team_1_predict_mean = self.RandForclass.predict_proba(data1_mean.iloc[-1:])
+                    #TEAM
                     # data1_mean_change = team_1_df2023.ewm(span=ma,min_periods=ma-1).mean()
                     # data1_mean_change['game_loc'] = game_loc_team1
                     # data2_mean_change = team_2_df2023.ewm(span=ma,min_periods=ma-1).mean()
                     # data2_mean_change['game_loc'] = game_loc_team2
+                    # x_new = self.scaler.transform(data2_mean_change.iloc[-1:])
+                    # prediction = self.model.predict(x_new)
+                    # probability = prediction[0]
                     # team_1_predict_median = self.RandForclass.predict(data1_median.iloc[-1:])
                     # team_2_predict_median = self.RandForclass.predict(data2_median.iloc[-1:])
                     #Here replace opponent metrics with the features of the second team
@@ -302,100 +363,30 @@ class cbbClass():
                     #             new_col = col.replace("opp_", "")
                     #             data2_mean_change.loc[data2_mean_change.index[-1], col] = data1_mean_change.loc[data1_mean_change.index[-1], new_col]
                     # team_2_predict_mean = self.RandForclass.predict_proba(data2_mean_change.iloc[-1:])
-                    team_1_ma_win.append(team_1_predict_mean[0][1])
-                    team_1_ma_loss.append(team_1_predict_mean[0][0])
-                team_2_ma_win = []
-                team_2_ma_loss = []
-                for ma in tqdm(ma_range):
-                    # data1_median = team_1_df2023.rolling(ma).median()
-                    # data1_median['game_loc'] = game_loc_team1
-                    # data2_median = team_2_df2023.rolling(ma).median()
-                    # data2_median['game_loc'] = game_loc_team2
-                    # data1_mean_old = team_1_df2023.rolling(ma).mean()
-                    # data2_mean_old = team_2_df2023.rolling(ma).mean()
-                    # TEAM 1
-                    data1_mean = team_1_df2023.ewm(span=ma,min_periods=ma-1).mean()
-                    data1_mean['game_loc'] = game_loc_team1
-                    data2_mean = team_2_df2023.ewm(span=ma,min_periods=ma-1).mean()
-                    data2_mean['game_loc'] = game_loc_team2
-                    # team_1_predict_median = self.RandForclass.predict(data1_median.iloc[-1:])
-                    # team_2_predict_median = self.RandForclass.predict(data2_median.iloc[-1:])
-                    #Here replace opponent metrics with the features of the second team
-                    for col in data2_mean.columns:
-                        if "opp" in col:
-                            if col == 'opp_trb':
-                                # new_col = col.replace("opp_", "")
-                                data2_mean.loc[data2_mean.index[-1], 'opp_trb'] = data1_mean.loc[data1_mean.index[-1], 'total_board']
-                            else:
-                                new_col = col.replace("opp_", "")
-                                data2_mean.loc[data2_mean.index[-1], col] = data1_mean.loc[data1_mean.index[-1], new_col]
-                    #get latest SRS value
-                    data1_mean.loc[data1_mean.index[-1], 'simple_rating_system'] = team_1_srs
-                    data2_mean.loc[data2_mean.index[-1], 'simple_rating_system'] = team_2_srs 
-                    # data1_mean['simple_rating_system'].iloc[-1] = cbb_web_scraper.get_latest_srs(team_1)
-                    team_2_predict_mean = self.RandForclass.predict_proba(data2_mean.iloc[-1:])
-                    team_2_ma_win.append(team_2_predict_mean[0][1])
-                    team_2_ma_loss.append(team_2_predict_mean[0][0])
                 # team_2_ma.append(team_2_predict_mean[0][1])
-                team_1_win_proba = round(np.mean(team_1_ma_win),4)*100
-                team_1_loss_proba = round(np.mean(team_1_ma_loss),4)*100
-                team_2_win_proba = round(np.mean(team_2_ma_win),4)*100
-                team_2_loss_proba = round(np.mean(team_2_ma_loss),4)*100
-                # team_2_proba = 100 - team_1_proba
+                # print('===============================================================')
+                # print(f'{team_1} win probability {round(np.mean(team_1_ma_win),4)*100}%')
                 # print(f'{team_2} win probability {round(np.median(team_2_predict_mean),4)*100}%')
                 # print(f'{team_2} winning: {np.mean(team_2_ma)}%')
                 print('===============================================================')
-                print(f'{team_1} SRS data: {team_1_srs}')
-                print(f'{team_2} SRS data: {team_2_srs}')
-                print('===============================================================')
-                if "tod" in sys.argv[2]:
-                    date_today = str(datetime.now().date()).replace("-", "")
-                elif "tom" in sys.argv[2]:
-                    date_today = str(datetime.now().date() + timedelta(days=1)).replace("-", "")
-                URL = "https://www.espn.com/mens-college-basketball/schedule/_/date/" + date_today #sys argv????
-                # print(f'MY prediction: {team_1}: {team_1_proba}% , {team_2}: {team_2_proba}%')
-                print(f'ESPN prediction: {cbb_web_scraper.get_espn(URL,team_1,team_2)}')
-                print('===============================================================')
-                print(f'{team_1} win summed win probabilities: {team_1_win_proba + team_2_loss_proba}')
-                print(f'{team_2} win summed win probabilities: {team_2_win_proba + team_1_loss_proba}')
-                print('THIS IS TOTALLY EXPLORATORY')
                 # if np.mean(team_1_ma_win) > np.mean(team_1_ma_loss):
                 #     print(f'{team_1} wins over {team_2}')
                 # else:
                 #     print(f'{team_2} wins over {team_1}')
-                # print('===============================================================')
-                # print(f'{team_1} win probability: {team_1_ma_win} %')
-                # print(f'{team_2} win probability: {team_1_ma_loss} %')
+                print(f'{team_1} score {np.median(values_team1)} : {team_2} score {np.median(values_team2)}')
+                # if team_1_count > team_2_count:
+                #     print(f'{team_1} wins over {team_2}')
+                # elif team_1_count < team_2_count:
+                #     print(f'{team_2} wins over {team_1}')
                 print('===============================================================')
-            except Exception as e:
-                print(f'The error: {e}')
-    def feature_importances_random_forest(self):
-        importances = self.RandForclass.best_estimator_.feature_importances_
-        indices = np.argsort(importances)
-        plt.figure()
-        plt.title('Feature Importances Random Forest - Classifier')
-        plt.barh(range(len(indices)), importances[indices], color='k', align='center')
-        plt.yticks(range(len(indices)), [self.x_test.columns[i] for i in indices])
-        plt.xlabel('Relative Importance - explained variance')
-        plt.tight_layout()
-        plt.savefig('feature_importance_random_forest_classifier.png',dpi=300)
-        # importances = self.RandForclass.best_estimator_.feature_importances_
-        # indices = np.argsort(importances)
-        # feature_names = [self.x_test.columns[i] for i in indices]
-        # plt.figure()
-        # sns.set_style("whitegrid")
-        # sns.barplot(x=importances[indices], y=feature_names, color='black', orient='h')
-        # plt.title('Feature Importances Random Forest - Classifier')
-        # plt.xlabel('Relative Importance - explained variance')
-        # plt.tight_layout()
-        # plt.savefig('feature_importance_random_forest_classifier.png',dpi=300)
+            # except Exception as e:
+            #         print(f'The error: {e}')
     def run_analysis(self):
         self.get_teams()
         self.split()
-        self.random_forest_analysis()
+        self.deep_learn()
         self.predict_two_teams()
-        self.feature_importances_random_forest()
 def main():
-    cbbClass().run_analysis()
+    cbbDeep().run_analysis()
 if __name__ == '__main__':
     main()
