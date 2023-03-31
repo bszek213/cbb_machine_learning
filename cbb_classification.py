@@ -348,6 +348,10 @@ class cbbClass():
                 print(f'{team_1} SRS data: {team_1_srs}')
                 print(f'{team_2} SRS data: {team_2_srs}')
                 print('===============================================================')
+                print(f'{team_1} win summed win probabilities: {team_1_win_proba + team_2_loss_proba}')
+                print(f'{team_2} win summed win probabilities: {team_2_win_proba + team_1_loss_proba}')
+                print('THIS IS TOTALLY EXPLORATORY')
+                print('===============================================================')
                 if "tod" in sys.argv[2]:
                     date_today = str(datetime.now().date()).replace("-", "")
                 elif "tom" in sys.argv[2]:
@@ -355,10 +359,6 @@ class cbbClass():
                 URL = "https://www.espn.com/mens-college-basketball/schedule/_/date/" + date_today #sys argv????
                 # print(f'MY prediction: {team_1}: {team_1_proba}% , {team_2}: {team_2_proba}%')
                 print(f'ESPN prediction: {cbb_web_scraper.get_espn(URL,team_1,team_2)}')
-                print('===============================================================')
-                print(f'{team_1} win summed win probabilities: {team_1_win_proba + team_2_loss_proba}')
-                print(f'{team_2} win summed win probabilities: {team_2_win_proba + team_1_loss_proba}')
-                print('THIS IS TOTALLY EXPLORATORY')
                 # if np.mean(team_1_ma_win) > np.mean(team_1_ma_loss):
                 #     print(f'{team_1} wins over {team_2}')
                 # else:
