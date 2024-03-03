@@ -212,7 +212,7 @@ class cbb_regressor():
                     break
                 team_2 = input('team_2: ')
                 #Game location
-                game_loc_team1 = int(input(f'{team_1} : #home = 0, away = 1, N = 2: '))
+                game_loc_team1 = int(input(f'{team_1} : home = 0, away = 1, neutral = 2: '))
                 if game_loc_team1 == 0:
                     game_loc_team2 = 1
                 elif game_loc_team1 == 1:
@@ -224,7 +224,7 @@ class cbb_regressor():
                 team_2  = get_close_matches(team_2,teams_sports_ref['teams'].tolist(),n=1)[0]
                 #2023 data
                 year = 2023
-                sleep(4)
+                # sleep(4)
                 basic = 'https://www.sports-reference.com/cbb/schools/' + team_1.lower() + '/' + str(year) + '-gamelogs.html'
                 adv = 'https://www.sports-reference.com/cbb/schools/' + team_1.lower() + '/' + str(year) + '-gamelogs-advanced.html'
                 team_1_df2023 = cbb_web_scraper.html_to_df_web_scrape_cbb(basic,adv,team_1.lower(),year)
@@ -258,8 +258,8 @@ class cbb_regressor():
                 team_2_df2023.drop(columns=self.drop_cols, inplace=True)
                 # team_1_df2023.to_csv('team_1.csv')
                 # team_2_df2023.to_csv('team_2.csv')
-                print(team_1_df2023)
-                print(team_2_df2023)
+                # print(team_1_df2023)
+                # print(team_2_df2023)
                 #Clean up dataframe
                 # for col in team_1_df2023.columns:
                 #     if 'Unnamed' in col:
@@ -282,6 +282,9 @@ class cbb_regressor():
                 num_pts_score_team_2 = []
                 mean_team_1_var = []
                 mean_team_2_var = []
+                # Get the latest simple rating system for both teams
+                team_1_srs = cbb_web_scraper.get_latest_srs(team_1)
+                team_2_srs = cbb_web_scraper.get_latest_srs(team_2)
                 for ma in tqdm(ma_range):
                     data1_median = team_1_df2023.rolling(ma).median()
                     data1_median['game_loc'] = game_loc_team1
@@ -298,30 +301,28 @@ class cbb_regressor():
                             if col == 'opp_trb':
                                 # new_col = col.replace("opp_", "")
                                 data1_mean.loc[data1_mean.index[-1], 'opp_trb'] = data2_mean.loc[data2_mean.index[-1], 'total_board']
-                                data2_mean.loc[data1_mean.index[-1], 'opp_trb'] = data1_mean.loc[data1_mean.index[-1], 'total_board']
+                                data2_mean.loc[data2_mean.index[-1], 'opp_trb'] = data1_mean.loc[data1_mean.index[-1], 'total_board']
 
                                 data1_median.loc[data1_median.index[-1], 'opp_trb'] = data2_median.loc[data2_median.index[-1], 'total_board']
-                                data2_median.loc[data1_median.index[-1], 'opp_trb'] = data1_median.loc[data1_median.index[-1], 'total_board']
+                                data2_median.loc[data2_median.index[-1], 'opp_trb'] = data1_median.loc[data1_median.index[-1], 'total_board']
                             else:
                                 new_col = col.replace("opp_", "")
                                 data1_mean.loc[data1_mean.index[-1], col] = data2_mean.loc[data2_mean.index[-1], new_col]
-                                data2_mean.loc[data1_mean.index[-1], col] = data1_mean.loc[data1_mean.index[-1], new_col]
+                                data2_mean.loc[data2_mean.index[-1], col] = data1_mean.loc[data1_mean.index[-1], new_col]
 
-                                data1_median.loc[data1_median.index[-1], col] = data2_median.loc[data2_mean.index[-1], new_col]
-                                data2_median.loc[data1_mean.index[-1], col] = data1_median.loc[data1_median.index[-1], new_col]
+                                data1_median.loc[data1_median.index[-1], col] = data2_median.loc[data2_median.index[-1], new_col]
+                                data2_median.loc[data2_median.index[-1], col] = data1_median.loc[data1_median.index[-1], new_col]
 
                     #Drop game result and points features
                     data1_median.drop(columns=['game_result','pts'],inplace=True)
                     data2_median.drop(columns=['game_result','pts'],inplace=True)
                     data1_mean.drop(columns=['game_result','pts'],inplace=True)
                     data2_mean.drop(columns=['game_result','pts'],inplace=True)
-                    # Get the latest simple rating system for both teams
-                    team_1_srs = cbb_web_scraper.get_latest_srs(team_1)
-                    team_2_srs = cbb_web_scraper.get_latest_srs(team_2)
+                    #apply SRS
                     data1_mean.loc[data1_mean.index[-1], 'simple_rating_system'] = team_1_srs
-                    data2_mean.loc[data1_mean.index[-1], 'simple_rating_system'] = team_2_srs
-                    data1_median.loc[data1_mean.index[-1], 'simple_rating_system'] = team_1_srs
-                    data2_median.loc[data1_mean.index[-1], 'simple_rating_system'] = team_2_srs
+                    data2_mean.loc[data2_mean.index[-1], 'simple_rating_system'] = team_2_srs
+                    data1_median.loc[data1_median.index[-1], 'simple_rating_system'] = team_1_srs
+                    data2_median.loc[data2_median.index[-1], 'simple_rating_system'] = team_2_srs
                     #Get current predictions for both teams
                     team_1_predict_median = self.RandForRegressor.predict(data1_median.iloc[-1:])
                     team_2_predict_median = self.RandForRegressor.predict(data2_median.iloc[-1:])
@@ -349,7 +350,10 @@ class cbb_regressor():
                     mean_team_2_var.append(np.mean(data2_mean[['fg','off_rtg']].dropna().std()))
                     mean_team_2_var.append(np.mean(data2_median[['fg','off_rtg']].dropna().std()))
                 print('===============================================================')
-                print(f'Outcomes with a rolling median from 2-{len(team_2_df2023)} games')
+                print(f'{team_1} SRS data: {team_1_srs}')
+                print(f'{team_2} SRS data: {team_2_srs}')
+                print('===============================================================')
+                print(f'Outcomes with a rolling median from 2-{len(ma_range)} games')
                 print(f'{team_1}: {team_1_count} | {team_1_median}')
                 print(f'{team_2}: {team_2_count} | {team_2_median}')
                 if team_1_count > team_2_count:
@@ -357,7 +361,7 @@ class cbb_regressor():
                 elif team_1_count < team_2_count:
                     print(f'======= {team_2} wins =======')
                 print('===============================================================')
-                print(f'Outcomes with a mean from 2-{len(team_2_df2023)} games')
+                print(f'Outcomes with a mean from 2-{len(ma_range)} games')
                 print(f'{team_1}: {team_1_count_mean} | {team_1_ma}')
                 print(f'{team_2}: {team_2_count_mean} | {team_2_ma}')
                 if team_1_count_mean > team_2_count_mean:

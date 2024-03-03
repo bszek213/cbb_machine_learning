@@ -51,7 +51,7 @@ def get_teams_year(year_min,year_max):
 
 def get_latest_srs(team):
     sleep(4)
-    url_srs = f'https://www.sports-reference.com/cbb/schools/{team}/men/2023-schedule.html'
+    url_srs = f'https://www.sports-reference.com/cbb/schools/{team}/men/2024-schedule.html'
     hdr = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"}
     req_1 = Request(url_srs,headers=hdr)
     html_1 = request.urlopen(req_1)
