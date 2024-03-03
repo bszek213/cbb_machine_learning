@@ -9,6 +9,7 @@ errors.log
 randomForestModelTuned.pkl
 randomForestModelTuned.joblib
 classifierModelTuned.joblib
+classifierModelTuned_xgb.joblib
 
 # C extensions
 *.so
