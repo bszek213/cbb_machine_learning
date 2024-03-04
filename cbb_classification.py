@@ -28,6 +28,18 @@ import seaborn as sns
 from tensorflow.keras.utils import to_categorical
 from sklearn.decomposition import PCA
 import xgboost as xgb
+from tensorflow.keras.layers import Dense, BatchNormalization
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
+from tensorflow.keras.optimizers import Adam, RMSprop
+from tensorflow.keras.regularizers import l1, l2
+from tensorflow.keras.activations import relu, tanh, linear
+from keras_tuner import RandomSearch
+from tensorflow.keras.losses import BinaryCrossentropy
+from tensorflow.keras.layers import Dropout
+from tensorflow.keras.models import load_model
+import os
+
 """
 TODO:
 -remove outliers from dataset
@@ -38,6 +50,39 @@ TODO:
 -check class balance for win and loss
 -during the prediction, make the data that team 1 is facing team2
 """
+def create_sequential_model(hp, n_features, n_outputs):
+    model = Sequential()
+    #Add hidden layers
+    for i in range(hp.Int('num_layers', 1, 10)):
+        if i == 0:
+            # First hidden layer needs input shape
+            model.add(Dense(units=hp.Int(f'units_{i}', min_value=8, max_value=128, step=8),
+                            activation=hp.Choice(f'activation_{i}', values=['relu', 'leaky_relu', 'tanh', 'linear']),
+                            kernel_regularizer=l2(hp.Float(f'regularizer_strength_{i}', min_value=1e-1, max_value=1, sampling='log')),
+                            input_shape=(n_features,)))
+        else:
+            model.add(Dense(units=hp.Int(f'units_{i}', min_value=8, max_value=128, step=8),
+                            activation=hp.Choice(f'activation_{i}', values=['relu', 'leaky_relu', 'tanh', 'linear']),
+                            kernel_regularizer=l2(hp.Float(f'regularizer_strength_{i}', min_value=1e-1, max_value=1, sampling='log'))))
+            model.add(BatchNormalization())
+            model.add(Dropout(rate=hp.Float(f'dropout_rate_{i}', min_value=0.3, max_value=0.6, step=0.1)))
+    
+    # Output layer
+    model.add(Dense(n_outputs, activation='sigmoid'))  # Binary classification
+    
+    # Compile model
+    optimizer_choice = hp.Choice('optimizer', values=['adam', 'rmsprop']) #, 'sgd'
+    if optimizer_choice == 'adam':
+        optimizer = Adam(learning_rate=hp.Float('adam_learning_rate', min_value=0.0001, max_value=0.01, sampling='log'))
+    else:
+        optimizer = RMSprop(learning_rate=hp.Float('rmsprop_learning_rate', min_value=0.0001, max_value=0.01, sampling='log'))
+    
+    model.compile(optimizer=optimizer,
+                  loss=BinaryCrossentropy(),
+                  metrics=['accuracy'])
+    
+    return model
+
 class cbbClass():
     def __init__(self):
         print('instantiate class cbbClass')
@@ -250,56 +295,96 @@ class cbbClass():
     #     plt.savefig('ROC_curve_class.png',dpi=300)
     
     def xgboost_analysis(self):
-        y_train_combined = np.concatenate([self.y_train, self.y_validation], axis=0)
-        x_train_combined = concat([self.x_train, self.x_validation], axis=0)
-        if argv[1] == 'tune':
-            # XGBoost Classifier
-            xgb_class = xgb.XGBClassifier()
+        if not os.path.exists('classifierModelTuned_xgb.joblib'):
+            y_train_combined = np.concatenate([self.y_train, self.y_validation], axis=0)
+            x_train_combined = concat([self.x_train, self.x_validation], axis=0)
+            if argv[1] == 'tune':
+                # XGBoost Classifier
+                xgb_class = xgb.XGBClassifier()
 
-            # Parameters to tune
-            params = {
-                'learning_rate': [0.01, 0.1],
-                'n_estimators': range(100, 300, 100),
-                'max_depth': range(2, 4, 2),
-                'min_child_weight': [1, 5],
-                'gamma': [0, 0.2],
-                'subsample': [0.6, 1.0],
-                'colsample_bytree': [0.6, 1.0],
-                'reg_alpha': [0, 0.01],
-                'reg_lambda': [0, 0.01],
-                'scale_pos_weight': [1, 3]
-            }
+                # Parameters to tune
+                params = {
+                    'learning_rate': [0.01, 0.1],
+                    'n_estimators': range(100, 300, 100),
+                    'max_depth': range(2, 4, 2),
+                    'min_child_weight': [1, 5],
+                    'gamma': [0, 0.2],
+                    'subsample': [0.6, 1.0],
+                    'colsample_bytree': [0.6, 1.0],
+                    'reg_alpha': [0, 0.01],
+                    'reg_lambda': [0, 0.01],
+                    'scale_pos_weight': [1, 3]
+                }
 
-            clf_xgb = GridSearchCV(xgb_class, params,
-                                scoring=['accuracy'],
-                                cv=5,
-                                refit='accuracy',
-                                verbose=4)
-            search_xgb = clf_xgb.fit(x_train_combined, y_train_combined)
+                clf_xgb = GridSearchCV(xgb_class, params,
+                                    scoring=['accuracy'],
+                                    cv=5,
+                                    refit='accuracy',
+                                    verbose=4)
+                search_xgb = clf_xgb.fit(x_train_combined, y_train_combined)
 
-            # Write fitted and tuned model to file
-            joblib.dump(search_xgb, "./classifierModelTuned_xgb.joblib", compress=9)
-            print('XGBoost Classifier - best params: ', search_xgb.best_params_)
-            self.xgb_class = search_xgb
-            prediction = self.xgb_class.predict(self.x_test)
-            print('Confusion Matrix: \n',confusion_matrix(np.argmax(self.y_test, axis=1), np.argmax(prediction, axis=1)))  # Display accuracy score
-            print(f'Model accuracy on test data:: {accuracy_score(np.argmax(self.y_test, axis=1), np.argmax(prediction, axis=1))}')  # Display F1 score
+                # Write fitted and tuned model to file
+                joblib.dump(search_xgb, "./classifierModelTuned_xgb.joblib", compress=9)
+                print('XGBoost Classifier - best params: ', search_xgb.best_params_)
+                self.xgb_class = search_xgb
+                prediction = self.xgb_class.predict(self.x_test)
+                print('Confusion Matrix: \n',confusion_matrix(np.argmax(self.y_test, axis=1), np.argmax(prediction, axis=1)))  # Display accuracy score
+                print(f'Model accuracy on test data:: {accuracy_score(np.argmax(self.y_test, axis=1), np.argmax(prediction, axis=1))}')  # Display F1 score
 
+            else:
+                print('Load tuned XGBoost Classifier')
+                # load XGBoost Model
+                self.xgb_class = joblib.load("./classifierModelTuned_xgb.joblib")
+                prediction = self.xgb_class.predict(self.x_test)
+                print('Confusion Matrix on test data: \n',confusion_matrix(np.argmax(self.y_test, axis=1), np.argmax(prediction, axis=1)))  # Display accuracy score
+                print(f'Model accuracy on test data: {accuracy_score(np.argmax(self.y_test, axis=1), np.argmax(prediction, axis=1))}')  # Display F1 score
+
+            y_proba = self.xgb_class.predict_proba(self.x_test)
+            fpr, tpr, thresholds = roc_curve(np.argmax(self.y_test, axis=1), np.argmax(y_proba, axis=1))
+            plt.plot(fpr, tpr)
+            plt.xlabel('False Positive Rate')
+            plt.ylabel('True Positive Rate')
+            plt.title('ROC Curve')
+            plt.savefig('ROC_curve_class.png', dpi=300)
         else:
-            print('Load tuned XGBoost Classifier')
-            # load XGBoost Model
             self.xgb_class = joblib.load("./classifierModelTuned_xgb.joblib")
-            prediction = self.xgb_class.predict(self.x_test)
-            print('Confusion Matrix on test data: \n',confusion_matrix(np.argmax(self.y_test, axis=1), np.argmax(prediction, axis=1)))  # Display accuracy score
-            print(f'Model accuracy on test data: {accuracy_score(np.argmax(self.y_test, axis=1), np.argmax(prediction, axis=1))}')  # Display F1 score
 
-        y_proba = self.xgb_class.predict_proba(self.x_test)
-        fpr, tpr, thresholds = roc_curve(np.argmax(self.y_test, axis=1), np.argmax(y_proba, axis=1))
-        plt.plot(fpr, tpr)
-        plt.xlabel('False Positive Rate')
-        plt.ylabel('True Positive Rate')
-        plt.title('ROC Curve')
-        plt.savefig('ROC_curve_class.png', dpi=300)
+
+    def deep_learn_analysis(self):
+        if not os.path.exists('binary_keras_deep.h5'):
+            tuner = RandomSearch(
+                    lambda hp: create_sequential_model(hp, self.x_train.shape[1], 2),
+                    objective='val_loss', #val_loss
+                    max_trials=10,
+                    directory=f'cbb_sequential_hp',
+                    project_name='sequential_hyperparameter_tuning',
+                )
+
+            early_stopping = EarlyStopping(monitor='val_loss', patience=9, restore_best_weights=True)
+            reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=3, min_lr=1e-6)
+            tuner.search(x=self.x_train, y=self.y_train,
+                        epochs=200,
+                        validation_data=(self.x_validation, self.y_validation),
+                        callbacks=[early_stopping, reduce_lr])
+
+            # best_hps = tuner.get_best_hyperparameters(num_trials=1)[0]
+            best_model = tuner.get_best_models(num_models=1)[0]
+
+            # Fit tuned model
+            loss_final = float(100)
+            for i in tqdm(range(15)):
+                best_model.fit(self.x_train, self.y_train,
+                            epochs=200, 
+                            validation_data=(self.x_validation, self.y_validation),
+                            callbacks=[early_stopping, reduce_lr])
+                loss, acc = best_model.evaluate(self.x_test, self.y_test)
+                if loss < loss_final:
+                    self.final_model_deep = best_model
+            loss, acc = self.final_model_deep.evaluate(self.x_test, self.y_test)
+            print(f'Final model test loss {loss} and accuracy {acc}')
+            self.final_model_deep.save('binary_keras_deep.h5')
+        else:
+            self.final_model_deep = load_model('binary_keras_deep.h5')
 
     def predict_two_teams(self):
         teams_sports_ref = read_csv('teams_sports_ref_format.csv')
@@ -391,6 +476,7 @@ class cbbClass():
                     data2_mean.loc[data2_mean.index[-1], 'simple_rating_system'] = team_2_srs 
                     # data1_mean['simple_rating_system'].iloc[-1] = cbb_web_scraper.get_latest_srs(team_1)
                     outcome = self.xgb_class.predict_proba(data1_mean.iloc[-1:])
+                    outcome_deep = self.final_model_deep.predict(data1_mean.iloc[-1:])
                     #TEAM 2
                     # data1_mean_change = team_1_df2023.ewm(span=ma,min_periods=ma-1).mean()
                     # data1_mean_change['game_loc'] = game_loc_team1
@@ -409,7 +495,9 @@ class cbbClass():
                     #             data2_mean_change.loc[data2_mean_change.index[-1], col] = data1_mean_change.loc[data1_mean_change.index[-1], new_col]
                     # team_2_predict_mean = self.RandForclass.predict_proba(data2_mean_change.iloc[-1:])
                     team_1_ma_win.append(outcome[0][1])
+                    team_1_ma_win.append(outcome_deep[0][1])
                     team_2_ma_win.append(outcome[0][0])
+                    team_2_ma_win.append(outcome_deep[0][0])
                 #quantile predictions - both play at their bests
                 qt_best_team_1, qt_best_team_2 = [], []
                 for ma in tqdm(ma_range):
@@ -440,8 +528,12 @@ class cbbClass():
                     data2_mean.loc[data2_mean.index[-1], 'simple_rating_system'] = team_2_srs 
                     # data1_mean['simple_rating_system'].iloc[-1] = cbb_web_scraper.get_latest_srs(team_1)
                     outcome = self.xgb_class.predict_proba(data1_mean.iloc[-1:])
+                    outcome_deep = self.final_model_deep.predict(data1_mean.iloc[-1:])
+
                     qt_best_team_1.append(outcome[0][1])
+                    qt_best_team_1.append(outcome_deep[0][1])
                     qt_best_team_2.append(outcome[0][0])
+                    qt_best_team_2.append(outcome_deep[0][0])
 
                 #quantile predictions - both play at their worsts
                 qt_worst_team_1, qt_worst_team_2 = [], []
@@ -473,8 +565,12 @@ class cbbClass():
                     data2_mean.loc[data2_mean.index[-1], 'simple_rating_system'] = team_2_srs 
                     # data1_mean['simple_rating_system'].iloc[-1] = cbb_web_scraper.get_latest_srs(team_1)
                     outcome = self.xgb_class.predict_proba(data1_mean.iloc[-1:])
+                    outcome_deep = self.final_model_deep.predict(data1_mean.iloc[-1:])
+
                     qt_worst_team_1.append(outcome[0][1])
+                    qt_worst_team_1.append(outcome_deep[0][1])
                     qt_worst_team_2.append(outcome[0][0])
+                    qt_worst_team_2.append(outcome_deep[0][0])
                 # team_2_ma_win = []
                 # team_2_ma_loss = []
                 # for ma in tqdm(ma_range):
@@ -520,29 +616,21 @@ class cbbClass():
                 print(f'{team_1} SRS data: {team_1_srs}')
                 print(f'{team_2} SRS data: {team_2_srs}')
                 print('===============================================================')
-                print(f'{team_1} average win probabilities: {np.mean(team_1_ma_win)}')
-                print(f'{team_2} average win probabilities: {np.mean(team_2_ma_win)}')
+                print(f'{team_1} average win probabilities: {np.median(team_1_ma_win)}')
+                print(f'{team_2} average win probabilities: {np.median(team_2_ma_win)}')
                 print('===============================================================')
-                print(f'{team_1} average win probabilities if they play at their best: {np.mean(qt_best_team_1)}')
-                print(f'{team_2} average win probabilities if they play at their best: {np.mean(qt_best_team_2)}')
+                print(f'{team_1} average win probabilities if they play at their best: {np.median(qt_best_team_1)}')
+                print(f'{team_2} average win probabilities if they play at their best: {np.median(qt_best_team_2)}')
                 print('===============================================================')
-                print(f'{team_1} average win probabilities if they play at their worst: {np.mean(qt_worst_team_1)}')
-                print(f'{team_2} average win probabilities if they play at their worst: {np.mean(qt_worst_team_2)}')
+                print(f'{team_1} average win probabilities if they play at their worst: {np.median(qt_worst_team_1)}')
+                print(f'{team_2} average win probabilities if they play at their worst: {np.median(qt_worst_team_2)}')
                 print('===============================================================')
-                if "tod" in sys.argv[2]:
-                    date_today = str(datetime.now().date()).replace("-", "")
-                elif "tom" in sys.argv[2]:
-                    date_today = str(datetime.now().date() + timedelta(days=1)).replace("-", "")
-                URL = "https://www.espn.com/mens-college-basketball/schedule/_/date/" + date_today #sys argv????
-                # print(f'MY prediction: {team_1}: {team_1_proba}% , {team_2}: {team_2_proba}%')
-                print(f'ESPN prediction: {cbb_web_scraper.get_espn(URL,team_1,team_2)}')
-                # if np.mean(team_1_ma_win) > np.mean(team_1_ma_loss):
-                #     print(f'{team_1} wins over {team_2}')
-                # else:
-                #     print(f'{team_2} wins over {team_1}')
-                # print('===============================================================')
-                # print(f'{team_1} win probability: {team_1_ma_win} %')
-                # print(f'{team_2} win probability: {team_1_ma_loss} %')
+                # if "tod" in sys.argv[2]:
+                #     date_today = str(datetime.now().date()).replace("-", "")
+                # elif "tom" in sys.argv[2]:
+                #     date_today = str(datetime.now().date() + timedelta(days=1)).replace("-", "")
+                # URL = "https://www.espn.com/mens-college-basketball/schedule/_/date/" + date_today #sys argv????
+                # print(f'ESPN prediction: {cbb_web_scraper.get_espn(URL,team_1,team_2)}')
                 print('===============================================================')
             except Exception as e:
                 print(f'The error: {e}')
@@ -581,6 +669,7 @@ class cbbClass():
         self.get_teams()
         self.split()
         # self.random_forest_analysis()
+        self.deep_learn_analysis()
         self.xgboost_analysis()
         self.predict_two_teams()
         # self.feature_importances_xgb()
