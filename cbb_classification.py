@@ -39,16 +39,11 @@ from tensorflow.keras.losses import BinaryCrossentropy
 from tensorflow.keras.layers import Dropout
 from tensorflow.keras.models import load_model
 import os
+from colorama import Fore, Style
 
 """
 TODO:
--remove outliers from dataset
 -normalize and standardize features
--change random forest to ensemble learning - catboost or xgboost
--correlation or pca analysis?
--create train, valid, and test splits
--check class balance for win and loss
--during the prediction, make the data that team 1 is facing team2
 """
 def create_sequential_model(hp, n_features, n_outputs):
     model = Sequential()
@@ -434,6 +429,10 @@ class cbbClass():
                 #Drop the correlated features
                 team_1_df2023.drop(columns=self.drop_cols, inplace=True)
                 team_2_df2023.drop(columns=self.drop_cols, inplace=True)
+                for col in team_1_df2023.columns:
+                    team_1_df2023[col] = team_1_df2023[col].astype(float)
+                for col in team_2_df2023.columns:
+                    team_2_df2023[col] = team_2_df2023[col].astype(float)
                 ma_range = np.arange(2,5,1) #2 was the most correct value for mean and 8 was the best for the median; chose 9 for tiebreaking
                 # team_1_count = 0
                 # team_2_count = 0
@@ -441,12 +440,35 @@ class cbbClass():
                 # team_2_count_mean = 0
                 team_1_ma_win = []
                 team_2_ma_win = []
-                # team_1_ma_loss = []
-                # team_2_ma = []
+                random_pred_1, random_pred_2 = [], []
+                qt_best_team_1, qt_best_team_2 = [], []
+                qt_worst_team_1, qt_worst_team_2 = [], []
                 #get latest SRS value
                 team_1_srs = cbb_web_scraper.get_latest_srs(team_1)
                 team_2_srs = cbb_web_scraper.get_latest_srs(team_2)
 
+                #TEAM 1 VS TEAM 2
+                #every game of one team vs every game for other team
+                for _ in range(len(team_1_df2023) * 5):
+                    random_row_df1 = team_1_df2023.sample(n=1)
+                    random_row_df2 = team_2_df2023.sample(n=1)
+
+                    for col in random_row_df1.columns:
+                        if "opp" in col:
+                            if col == 'opp_trb':
+                                random_row_df1.at[random_row_df1.index[0], 'opp_trb'] = random_row_df2.at[random_row_df2.index[0], 'total_board']
+                            else:
+                                new_col = col.replace("opp_", "")
+                                random_row_df1.at[random_row_df1.index[0], col] = random_row_df2.at[random_row_df2.index[0], new_col]
+                    
+                    outcome = self.xgb_class.predict_proba(random_row_df1)
+                    outcome_deep = self.final_model_deep.predict(random_row_df1)
+
+                    random_pred_1.append(outcome[0][1])
+                    random_pred_1.append(outcome_deep[0][1])
+                    random_pred_2.append(outcome[0][0])
+                    random_pred_2.append(outcome_deep[0][0])
+                    
                 #rolling average predictions
                 for ma in tqdm(ma_range):
                     # data1_median = team_1_df2023.rolling(ma).median()
@@ -499,7 +521,7 @@ class cbbClass():
                     team_2_ma_win.append(outcome[0][0])
                     team_2_ma_win.append(outcome_deep[0][0])
                 #quantile predictions - both play at their bests
-                qt_best_team_1, qt_best_team_2 = [], []
+                
                 for ma in tqdm(ma_range):
                     # data1_median = team_1_df2023.rolling(ma).median()
                     # data1_median['game_loc'] = game_loc_team1
@@ -536,7 +558,6 @@ class cbbClass():
                     qt_best_team_2.append(outcome_deep[0][0])
 
                 #quantile predictions - both play at their worsts
-                qt_worst_team_1, qt_worst_team_2 = [], []
                 for ma in tqdm(ma_range):
                     # data1_median = team_1_df2023.rolling(ma).median()
                     # data1_median['game_loc'] = game_loc_team1
@@ -571,60 +592,162 @@ class cbbClass():
                     qt_worst_team_1.append(outcome_deep[0][1])
                     qt_worst_team_2.append(outcome[0][0])
                     qt_worst_team_2.append(outcome_deep[0][0])
-                # team_2_ma_win = []
-                # team_2_ma_loss = []
-                # for ma in tqdm(ma_range):
-                #     # data1_median = team_1_df2023.rolling(ma).median()
-                #     # data1_median['game_loc'] = game_loc_team1
-                #     # data2_median = team_2_df2023.rolling(ma).median()
-                #     # data2_median['game_loc'] = game_loc_team2
-                #     # data1_mean_old = team_1_df2023.rolling(ma).mean()
-                #     # data2_mean_old = team_2_df2023.rolling(ma).mean()
-                #     # TEAM 1
-                #     data1_mean = team_1_df2023.ewm(span=ma,min_periods=ma-1).mean()
-                #     data1_mean['game_loc'] = game_loc_team1
-                #     data2_mean = team_2_df2023.ewm(span=ma,min_periods=ma-1).mean()
-                #     data2_mean['game_loc'] = game_loc_team2
-                #     # team_1_predict_median = self.RandForclass.predict(data1_median.iloc[-1:])
-                #     # team_2_predict_median = self.RandForclass.predict(data2_median.iloc[-1:])
-                #     #Here replace opponent metrics with the features of the second team
-                #     for col in data2_mean.columns:
-                #         if "opp" in col:
-                #             if col == 'opp_trb':
-                #                 # new_col = col.replace("opp_", "")
-                #                 data2_mean.loc[data2_mean.index[-1], 'opp_trb'] = data1_mean.loc[data1_mean.index[-1], 'total_board']
-                #             else:
-                #                 new_col = col.replace("opp_", "")
-                #                 data2_mean.loc[data2_mean.index[-1], col] = data1_mean.loc[data1_mean.index[-1], new_col]
-                #     #get latest SRS value
-                #     data1_mean.loc[data1_mean.index[-1], 'simple_rating_system'] = team_1_srs
-                #     data2_mean.loc[data2_mean.index[-1], 'simple_rating_system'] = team_2_srs 
-                #     # data1_mean['simple_rating_system'].iloc[-1] = cbb_web_scraper.get_latest_srs(team_1)
-                #     team_2_predict_mean = self.RandForclass.predict_proba(data2_mean.iloc[-1:])
-                #     team_2_ma_win.append(team_2_predict_mean[0][1])
-                #     team_2_ma_loss.append(team_2_predict_mean[0][0])
-                # # team_2_ma.append(team_2_predict_mean[0][1])
-                # team_1_win_proba = round(np.mean(team_1_ma_win),4)*100
-                # team_1_loss_proba = round(np.mean(team_1_ma_loss),4)*100
-                # team_2_win_proba = round(np.mean(team_2_ma_win),4)*100
-                # team_2_loss_proba = round(np.mean(team_2_ma_loss),4)*100
-                # team_2_proba = 100 - team_1_proba
-                # print(f'{team_2} win probability {round(np.median(team_2_predict_mean),4)*100}%')
-                # print(f'{team_2} winning: {np.mean(team_2_ma)}%')
                 
+                #TEAM 2 VS TEAM 1
+                temp = team_1_df2023
+                team_1_df2023 = team_2_df2023
+                team_2_df2023 = temp
+
+                if game_loc_team1 == 1:
+                    game_loc_team1 = 0
+                if game_loc_team2 == 0:
+                    game_loc_team2 = 1
+
+                #get latest SRS value - flip them
+                team_1_srs = cbb_web_scraper.get_latest_srs(team_2)
+                team_2_srs = cbb_web_scraper.get_latest_srs(team_1)
+                #every game of one team vs every game for other team
+                for _ in range(len(team_1_df2023) * 5):
+                    random_row_df1 = team_1_df2023.sample(n=1)
+                    random_row_df2 = team_2_df2023.sample(n=1)
+
+                    for col in random_row_df1.columns:
+                        if "opp" in col:
+                            if col == 'opp_trb':
+                                random_row_df1.at[random_row_df1.index[0], 'opp_trb'] = random_row_df2.at[random_row_df2.index[0], 'total_board']
+                            else:
+                                new_col = col.replace("opp_", "")
+                                random_row_df1.at[random_row_df1.index[0], col] = random_row_df2.at[random_row_df2.index[0], new_col]
+                    
+                    outcome = self.xgb_class.predict_proba(random_row_df1)
+                    outcome_deep = self.final_model_deep.predict(random_row_df1)
+
+                    random_pred_1.append(outcome[0][1])
+                    random_pred_1.append(outcome_deep[0][1])
+                    random_pred_2.append(outcome[0][0])
+                    random_pred_2.append(outcome_deep[0][0])
+                    
+                #rolling average predictions
+                for ma in tqdm(ma_range):
+                    # TEAM 1
+                    data1_mean = team_1_df2023.ewm(span=ma,min_periods=ma-1).mean()
+                    data1_mean['game_loc'] = game_loc_team1
+                    data2_mean = team_2_df2023.ewm(span=ma,min_periods=ma-1).mean()
+                    data2_mean['game_loc'] = game_loc_team2
+                    #Here replace opponent metrics with the features of the second team
+                    for col in data1_mean.columns:
+                        if "opp" in col:
+                            if col == 'opp_trb':
+                                # new_col = col.replace("opp_", "")
+                                data1_mean.loc[data1_mean.index[-1], 'opp_trb'] = data2_mean.loc[data2_mean.index[-1], 'total_board']
+                            else:
+                                new_col = col.replace("opp_", "")
+                                data1_mean.loc[data1_mean.index[-1], col] = data2_mean.loc[data2_mean.index[-1], new_col]
+                    #get latest SRS value
+                    data1_mean.loc[data1_mean.index[-1], 'simple_rating_system'] = team_1_srs
+                    data2_mean.loc[data2_mean.index[-1], 'simple_rating_system'] = team_2_srs 
+                    # data1_mean['simple_rating_system'].iloc[-1] = cbb_web_scraper.get_latest_srs(team_1)
+                    outcome = self.xgb_class.predict_proba(data1_mean.iloc[-1:])
+                    outcome_deep = self.final_model_deep.predict(data1_mean.iloc[-1:])
+
+                    team_1_ma_win.append(outcome[0][1])
+                    team_1_ma_win.append(outcome_deep[0][1])
+                    team_2_ma_win.append(outcome[0][0])
+                    team_2_ma_win.append(outcome_deep[0][0])
+                #quantile predictions - both play at their bests
+                for ma in tqdm(ma_range):
+                    # TEAM 1
+                    data1_mean = team_1_df2023.rolling(window=ma).quantile(0.75).iloc[-1:]
+                    data1_mean['game_loc'] = game_loc_team1
+                    data2_mean = team_2_df2023.rolling(window=ma).quantile(0.75).iloc[-1:]
+                    data2_mean['game_loc'] = game_loc_team2
+                    #Here replace opponent metrics with the features of the second team
+                    for col in data1_mean.columns:
+                        if "opp" in col:
+                            if col == 'opp_trb':
+                                # new_col = col.replace("opp_", "")
+                                data1_mean.loc[data1_mean.index[-1], 'opp_trb'] = data2_mean.loc[data2_mean.index[-1], 'total_board']
+                            else:
+                                new_col = col.replace("opp_", "")
+                                data1_mean.loc[data1_mean.index[-1], col] = data2_mean.loc[data2_mean.index[-1], new_col]
+                    #get latest SRS value
+                    data1_mean.loc[data1_mean.index[-1], 'simple_rating_system'] = team_1_srs
+                    data2_mean.loc[data2_mean.index[-1], 'simple_rating_system'] = team_2_srs 
+                    # data1_mean['simple_rating_system'].iloc[-1] = cbb_web_scraper.get_latest_srs(team_1)
+                    outcome = self.xgb_class.predict_proba(data1_mean.iloc[-1:])
+                    outcome_deep = self.final_model_deep.predict(data1_mean.iloc[-1:])
+
+                    qt_best_team_1.append(outcome[0][1])
+                    qt_best_team_1.append(outcome_deep[0][1])
+                    qt_best_team_2.append(outcome[0][0])
+                    qt_best_team_2.append(outcome_deep[0][0])
+
+                #quantile predictions - both play at their worsts
+                for ma in tqdm(ma_range):
+                    # TEAM 1
+                    data1_mean = team_1_df2023.rolling(window=ma).quantile(0.25).iloc[-1:]
+                    data1_mean['game_loc'] = game_loc_team1
+                    data2_mean = team_2_df2023.rolling(window=ma).quantile(0.25).iloc[-1:]
+                    data2_mean['game_loc'] = game_loc_team2
+                    #Here replace opponent metrics with the features of the second team
+                    for col in data1_mean.columns:
+                        if "opp" in col:
+                            if col == 'opp_trb':
+                                # new_col = col.replace("opp_", "")
+                                data1_mean.loc[data1_mean.index[-1], 'opp_trb'] = data2_mean.loc[data2_mean.index[-1], 'total_board']
+                            else:
+                                new_col = col.replace("opp_", "")
+                                data1_mean.loc[data1_mean.index[-1], col] = data2_mean.loc[data2_mean.index[-1], new_col]
+                    #get latest SRS value
+                    data1_mean.loc[data1_mean.index[-1], 'simple_rating_system'] = team_1_srs
+                    data2_mean.loc[data2_mean.index[-1], 'simple_rating_system'] = team_2_srs 
+                    # data1_mean['simple_rating_system'].iloc[-1] = cbb_web_scraper.get_latest_srs(team_1)
+                    outcome = self.xgb_class.predict_proba(data1_mean.iloc[-1:])
+                    outcome_deep = self.final_model_deep.predict(data1_mean.iloc[-1:])
+
+                    qt_worst_team_1.append(outcome[0][1])
+                    qt_worst_team_1.append(outcome_deep[0][1])
+                    qt_worst_team_2.append(outcome[0][0])
+                    qt_worst_team_2.append(outcome_deep[0][0])
+
+                #reflip for printing
+                team_1_srs = cbb_web_scraper.get_latest_srs(team_1)
+                team_2_srs = cbb_web_scraper.get_latest_srs(team_2)
                 print('===============================================================')
-                print(f'{team_1} SRS data: {team_1_srs}')
-                print(f'{team_2} SRS data: {team_2_srs}')
+                if team_1_srs > team_2_srs:
+                    print(Fore.GREEN + Style.BRIGHT + f'{team_1} SRS data: {team_1_srs}'+ Style.RESET_ALL)
+                    print(Fore.RED + Style.BRIGHT + f'{team_2} SRS data: {team_2_srs}'+ Style.RESET_ALL)
+                else:
+                    print(Fore.RED + Style.BRIGHT + f'{team_1} SRS data: {team_1_srs}'+ Style.RESET_ALL)
+                    print(Fore.GREEN + Style.BRIGHT + f'{team_2} SRS data: {team_2_srs}'+ Style.RESET_ALL)
                 print('===============================================================')
-                print(f'{team_1} average win probabilities: {np.median(team_1_ma_win)}')
-                print(f'{team_2} average win probabilities: {np.median(team_2_ma_win)}')
+                if np.median(team_1_ma_win) > np.median(team_2_ma_win):
+                    print(Fore.GREEN + Style.BRIGHT + f'{team_1} average win probabilities: {np.mean(team_1_ma_win)}'+ Style.RESET_ALL)
+                    print(Fore.RED + Style.BRIGHT + f'{team_2} average win probabilities: {np.mean(team_2_ma_win)}'+ Style.RESET_ALL)
+                else:
+                    print(Fore.RED + Style.BRIGHT + f'{team_1} average win probabilities: {np.mean(team_1_ma_win)}'+ Style.RESET_ALL)
+                    print(Fore.GREEN + Style.BRIGHT + f'{team_2} average win probabilities: {np.mean(team_2_ma_win)}'+ Style.RESET_ALL)
                 print('===============================================================')
-                print(f'{team_1} average win probabilities if they play at their best: {np.median(qt_best_team_1)}')
-                print(f'{team_2} average win probabilities if they play at their best: {np.median(qt_best_team_2)}')
+                if np.median(qt_best_team_1) > np.median(qt_best_team_2):
+                    print(Fore.GREEN + Style.BRIGHT + f'{team_1} average win probabilities if they play at their best: {np.mean(qt_best_team_1)}'+ Style.RESET_ALL)
+                    print(Fore.RED + Style.BRIGHT + f'{team_2} average win probabilities if they play at their best: {np.mean(qt_best_team_2)}'+ Style.RESET_ALL)
+                else:
+                    print(Fore.RED + Style.BRIGHT + f'{team_1} average win probabilities if they play at their best: {np.mean(qt_best_team_1)}'+ Style.RESET_ALL)
+                    print(Fore.GREEN + Style.BRIGHT + f'{team_2} average win probabilities if they play at their best: {np.mean(qt_best_team_2)}'+ Style.RESET_ALL)
                 print('===============================================================')
-                print(f'{team_1} average win probabilities if they play at their worst: {np.median(qt_worst_team_1)}')
-                print(f'{team_2} average win probabilities if they play at their worst: {np.median(qt_worst_team_2)}')
+                if np.median(qt_worst_team_1) > np.median(qt_worst_team_2):
+                    print(Fore.GREEN + Style.BRIGHT + f'{team_1} average win probabilities if they play at their worst: {np.mean(qt_worst_team_1)}'+ Style.RESET_ALL)
+                    print(Fore.RED + Style.BRIGHT + f'{team_2} average win probabilities if they play at their worst: {np.mean(qt_worst_team_2)}'+ Style.RESET_ALL)
+                else:
+                    print(Fore.RED + Style.BRIGHT + f'{team_1} average win probabilities if they play at their worst: {np.mean(qt_worst_team_1)}'+ Style.RESET_ALL)
+                    print(Fore.GREEN + Style.BRIGHT + f'{team_2} average win probabilities if they play at their worst: {np.mean(qt_worst_team_2)}'+ Style.RESET_ALL)
                 print('===============================================================')
+                if np.median(random_pred_1) > np.median(random_pred_2):
+                    print(Fore.GREEN + Style.BRIGHT + f'{team_1} average win probabilities randomly selecting games: {np.mean(random_pred_1)}'+ Style.RESET_ALL)
+                    print(Fore.RED + Style.BRIGHT + f'{team_2} average win probabilities randomly selecting games: {np.mean(random_pred_2)}'+ Style.RESET_ALL)
+                else:
+                    print(Fore.RED + Style.BRIGHT + f'{team_1} average win probabilities randomly selecting games: {np.mean(random_pred_1)}'+ Style.RESET_ALL)
+                    print(Fore.GREEN + Style.BRIGHT + f'{team_2} average win probabilities randomly selecting games: {np.mean(random_pred_2)}'+ Style.RESET_ALL)
                 # if "tod" in sys.argv[2]:
                 #     date_today = str(datetime.now().date()).replace("-", "")
                 # elif "tom" in sys.argv[2]:
