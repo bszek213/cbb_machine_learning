@@ -13,16 +13,16 @@ from time import sleep
 from pandas import DataFrame, concat, read_csv, isnull
 from sklearn.model_selection import train_test_split
 from sklearn.model_selection import GridSearchCV
-from sklearn.ensemble import RandomForestClassifier
+# from sklearn.ensemble import RandomForestClassifier
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sys import argv
 import joblib
-from sklearn.metrics import confusion_matrix, f1_score, accuracy_score
+from sklearn.metrics import confusion_matrix, accuracy_score
 from difflib import get_close_matches
-import sys
-from datetime import datetime, timedelta
+# import sys
+# from datetime import datetime, timedelta
 from sklearn.metrics import roc_curve
 import seaborn as sns
 from tensorflow.keras.utils import to_categorical
@@ -33,17 +33,18 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from tensorflow.keras.optimizers import Adam, RMSprop
 from tensorflow.keras.regularizers import l1, l2
-from tensorflow.keras.activations import relu, tanh, linear
+# from tensorflow.keras.activations import relu, tanh, linear
 from keras_tuner import RandomSearch
 from tensorflow.keras.losses import BinaryCrossentropy
 from tensorflow.keras.layers import Dropout
 from tensorflow.keras.models import load_model
 import os
 from colorama import Fore, Style
+from sklearn.preprocessing import StandardScaler
 
 """
 TODO:
--normalize and standardize features
+-Cannot use pca, as you cant insert opponent data into team data. Use corr data and put numpy matrix back into df
 """
 def create_sequential_model(hp, n_features, n_outputs):
     model = Sequential()
@@ -79,11 +80,11 @@ def create_sequential_model(hp, n_features, n_outputs):
     return model
 
 class cbbClass():
-    def __init__(self):
+    def __init__(self,pre_process):
         print('instantiate class cbbClass')
         self.all_data = DataFrame()
-        # if exists(join(getcwd(),'randomForestModelTuned.joblib')):
-        #     self.RandForRegressor=joblib.load("./randomForestModelTuned.joblib")
+        self.which_analysis = pre_process # 'pca' or 'corr'
+
     def get_teams(self):
         year_list_find = []
         year_list = [2024,2023]#,2022,2021,2019,2018,2017,2016,2015,2014,2013,2012,2011,2010]
@@ -138,13 +139,16 @@ class cbbClass():
         print(f'dataset size after duplicates are dropped: {np.shape(self.all_data)}')
     
     def pca_analysis(self):
-        pca = PCA(n_components=0.95) #explain 95% of the variance
-        self.x_pca = pca.fit_transform(self.x)
+        #scale first before pca 
+        self.scaler = StandardScaler()
+        x_scale = self.scaler.fit_transform(self.x)
+        self.pca = PCA(n_components=0.95) #explain 95% of the variance
+        self.x_no_corr = self.pca.fit_transform(x_scale)
 
         #Visualize PCA components
         plt.figure()
         plt.figure(figsize=(8, 6))
-        plt.bar(range(pca.n_components_), pca.explained_variance_ratio_)
+        plt.bar(range(self.pca.n_components_), self.pca.explained_variance_ratio_)
         plt.xlabel('Principal Component')
         plt.ylabel('Explained Variance Ratio')
         plt.title('Explained Variance Ratio of Principal Components')
@@ -185,15 +189,21 @@ class cbbClass():
         #onehot encode
         self.y = to_categorical(self.y)
         self.x = self.all_data.drop(columns=['game_result'])
-        #correlational analysis and outlier removal
-        self.pre_process_corr_out_remove()
-        #pca 
-        self.pca_analysis()
+        
+        
         # #Dropna and remove all data from subsequent y data
         # real_values = ~self.x_no_corr.isna().any(axis=1)
         # self.x_no_corr.dropna(inplace=True)
         # self.y = self.y.loc[real_values]
 
+       
+        #pca data or no correlated data
+        if self.which_analysis == 'pca':
+            #pca 
+            self.pca_analysis()
+        else:
+            #correlational analysis and outlier removal
+            self.pre_process_corr_out_remove()
         #75/15/10 split
         #Split data into training and the rest (75% training, 25% temporary)
         self.x_train, x_temp, self.y_train, y_temp = train_test_split(self.x_no_corr, self.y, train_size=0.75, random_state=42)
@@ -236,6 +246,10 @@ class cbbClass():
         plt.tight_layout()
         plt.savefig('correlations_class.png',dpi=250)
         plt.close()
+        
+        #standardize
+        self.scaler = StandardScaler()
+        self.x_no_corr = self.scaler.fit_transform(self.x_no_corr)
 
     # def random_forest_analysis(self):
     #     if argv[1] == 'tune':
@@ -292,7 +306,7 @@ class cbbClass():
     def xgboost_analysis(self):
         if not os.path.exists('classifierModelTuned_xgb.joblib'):
             y_train_combined = np.concatenate([self.y_train, self.y_validation], axis=0)
-            x_train_combined = concat([self.x_train, self.x_validation], axis=0)
+            x_train_combined = np.concatenate([self.x_train, self.x_validation], axis=0)
             if argv[1] == 'tune':
                 # XGBoost Classifier
                 xgb_class = xgb.XGBClassifier()
@@ -417,6 +431,10 @@ class cbbClass():
                 team_2_df2023['pts'].replace('', np.nan, inplace=True)
                 team_2_df2023.replace('', np.nan, inplace=True)
                 team_2_df2023.dropna(inplace=True)
+                for col in team_1_df2023.columns:
+                    team_1_df2023[col] = team_1_df2023[col].astype(float)
+                for col in team_2_df2023.columns:
+                    team_2_df2023[col] = team_2_df2023[col].astype(float)
                 #Remove pts and game result
                 # for col in team_1_df2023.columns:
                 #     if 'opp' in col:
@@ -424,15 +442,24 @@ class cbbClass():
                 # for col in team_2_df2023.columns:
                 #     if 'opp' in col:
                 #         team_2_df2023.drop(columns=col,inplace=True)
-                team_1_df2023.drop(columns=['game_result'],inplace=True)
-                team_2_df2023.drop(columns=['game_result'],inplace=True)
-                #Drop the correlated features
-                team_1_df2023.drop(columns=self.drop_cols, inplace=True)
-                team_2_df2023.drop(columns=self.drop_cols, inplace=True)
-                for col in team_1_df2023.columns:
-                    team_1_df2023[col] = team_1_df2023[col].astype(float)
-                for col in team_2_df2023.columns:
-                    team_2_df2023[col] = team_2_df2023[col].astype(float)
+                if self.which_analysis == 'pca':
+                    team_1_df2023.drop(columns=['game_result'],inplace=True)
+                    team_2_df2023.drop(columns=['game_result'],inplace=True)
+                    team_1_df2023 = self.scaler.transform(team_1_df2023)
+                    team_1_df2023 = self.pca.transform(team_1_df2023)
+                    team_2_df2023 = self.scaler.transform(team_2_df2023)
+                    team_2_df2023 = self.pca.transform(team_2_df2023)
+                    
+                else:
+                    team_1_df2023.drop(columns=['game_result'],inplace=True)
+                    team_2_df2023.drop(columns=['game_result'],inplace=True)
+                    #Drop the correlated features
+                    team_1_df2023.drop(columns=self.drop_cols, inplace=True)
+                    team_2_df2023.drop(columns=self.drop_cols, inplace=True)
+
+                    team_1_df2023 = self.scaler.transform(team_1_df2023)
+                    team_2_df2023 = self.scaler.transform(team_2_df2023)
+
                 ma_range = np.arange(2,5,1) #2 was the most correct value for mean and 8 was the best for the median; chose 9 for tiebreaking
                 # team_1_count = 0
                 # team_2_count = 0
@@ -450,8 +477,10 @@ class cbbClass():
                 #TEAM 1 VS TEAM 2
                 #every game of one team vs every game for other team
                 for _ in range(len(team_1_df2023) * 5):
-                    random_row_df1 = team_1_df2023.sample(n=1)
-                    random_row_df2 = team_2_df2023.sample(n=1)
+                    random_row_df1 = np.random.choice(team_1_df2023, size=1, axis=0)
+                    random_row_df2 = np.random.choice(team_2_df2023, size=1, axis=0)
+                    # random_row_df1 = team_1_df2023.sample(n=1)
+                    # random_row_df2 = team_2_df2023.sample(n=1)
 
                     for col in random_row_df1.columns:
                         if "opp" in col:
@@ -797,6 +826,6 @@ class cbbClass():
         self.predict_two_teams()
         # self.feature_importances_xgb()
 def main():
-    cbbClass().run_analysis()
+    cbbClass('pca').run_analysis() # 'pca' or 'corr'
 if __name__ == '__main__':
     main()

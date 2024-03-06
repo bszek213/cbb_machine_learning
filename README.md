@@ -16,13 +16,15 @@ dataset shape: (27973 samples, 55 features)
 
 ### Current prediction accuracies - XGBoost
 # After 5 fold cross validation and pre-processing
-Current XGBoost Classifier - best params:  {'colsample_bytree': 1.0, 'gamma': 0, 'learning_rate': 0.1, 'max_depth': 2, 'min_child_weight': 1, 'n_estimators': 200, 'reg_alpha': 0, 'reg_lambda': 0.01, 'scale_pos_weight': 1, 'subsample': 1.0}
+Current XGBoost Classifier - best params:  {'colsample_bytree': 1.0, 'gamma': 0, 'learning_rate': 0.1, 'max_depth': 2, 'min_child_weight': 1, 'n_estimators': 200, 'reg_alpha': 0, 'reg_lambda': 0, 'scale_pos_weight': 1, 'subsample': 1.0}
 
 
-#Classification - Random forest
-Confusion Matrix: [[1362    0]
-                  [   1 1434]]
-Model accuracy: 0.9996424740793708
+#Classification - XGBoost
+Confusion Matrix:  [[1317   45]
+                    [  55 1380]]
+Model accuracy: 0.9642474079370754
+#Classificatino - DNN Keras
+Model accuracy on test dasta: 0.976
 ```
 ### Correlation Matrix
 ![](https://github.com/bszek213/cbb_machine_learning/blob/dev/correlations.png)
