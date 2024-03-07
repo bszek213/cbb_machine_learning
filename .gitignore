@@ -10,7 +10,8 @@ randomForestModelTuned.pkl
 randomForestModelTuned.joblib
 classifierModelTuned.joblib
 classifierModelTuned_xgb.joblib
-
+#training directory
+cbb_sequential_hp/
 # C extensions
 *.so
 
