@@ -217,9 +217,10 @@ class cbbClass():
         upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
         to_drop = [column for column in upper.columns if any(upper[column] >= corr_val)]
         self.drop_cols = to_drop
-        self.x_no_corr = self.x.drop(columns=to_drop)
+        self.drop_cols = self.drop_cols + ['opp_pts', 'pts']
+        self.x_no_corr = self.x.drop(columns=self.drop_cols)
         cols = self.x_no_corr.columns
-        print(f'Columns dropped  >= {corr_val}: {to_drop}')
+        print(f'Columns dropped  >= {corr_val}: {self.drop_cols}')
         #Drop samples that are outliers 
         print(f'old feature dataframe shape before outlier removal: {self.x_no_corr.shape}')
         for col_name in cols:
@@ -255,7 +256,7 @@ class cbbClass():
         self.x_no_corr = self.min_max_scaler.fit_transform(self.x_no_corr)
         self.x_no_corr = DataFrame(self.x_no_corr,columns=self.cols_save)
         #Generate random noise with the same shape as the DataFrame
-        noise = np.random.normal(loc=0, scale=0.2, size=self.x_no_corr.shape) #the higher the scale value is, the more uniform the distribution becomes
+        noise = np.random.normal(loc=0, scale=0.15, size=self.x_no_corr.shape) #the higher the scale value is, the more uniform the distribution becomes
         self.x_no_corr = self.x_no_corr + noise
 
     # def random_forest_analysis(self):
@@ -357,11 +358,13 @@ class cbbClass():
 
             y_proba = self.xgb_class.predict_proba(self.x_test)
             fpr, tpr, thresholds = roc_curve(np.argmax(self.y_test, axis=1), np.argmax(y_proba, axis=1))
+            plt.figure()
             plt.plot(fpr, tpr)
             plt.xlabel('False Positive Rate')
             plt.ylabel('True Positive Rate')
             plt.title('ROC Curve')
             plt.savefig('ROC_curve_class.png', dpi=300)
+            plt.close()
         else:
             self.xgb_class = joblib.load("./classifierModelTuned_xgb.joblib")
 
