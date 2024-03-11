@@ -17,6 +17,8 @@ from pandas import read_csv
 from numpy import where
 from re import search
 from difflib import get_close_matches
+from datetime import datetime
+from numpy import nan
 #TODO: CREATE A FEATURE OF opp_simple_rating_system
 
 def get_teams_year(year_min,year_max):
@@ -49,6 +51,20 @@ def get_teams_year(year_min,year_max):
         teams_save.append(team)
     return teams_save
 
+def alter_string(team):
+    team = team.replace(' ', '-').lower()
+    if '.' in team:
+        team = team.replace(".", "")
+    if 'the' in team:
+        team = team.replace("the-", "")
+    if '&' in team:
+        team = team.replace("&", "")
+    if '(' in team and ')' in team:
+        team = team.replace("(", "")
+        team = team.replace(")", "")
+    if "'" in team:
+        team = team.replace("'", "")
+    return team
 def get_latest_srs(team):
     sleep(4)
     url_srs = f'https://www.sports-reference.com/cbb/schools/{team}/men/2024-schedule.html'
@@ -65,6 +81,32 @@ def get_latest_srs(team):
             if td.get('data-stat') == "srs":
                 srs.append(td.get_text())
     return float(srs[-1])
+
+def get_adv_opp_variables(team,parsed_date):
+    date_without_time = parsed_date.strftime('%Y-%m-%d')
+    sleep(3)
+    url ='https://www.sports-reference.com/cbb/schools/' + team + '/' + str(2024) + '-gamelogs-advanced.html'
+    hdr = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"}
+    req_1 = Request(url,headers=hdr)
+    html_1 = request.urlopen(req_1)
+    soup_2 = BeautifulSoup(html_1, "html.parser")
+    table2 = soup_2.find(id="all_sgl-advanced")
+    tbody2 = table2.find('tbody')
+    tr_body2 = tbody2.find_all('tr')
+    # off_rtg, def_rtg = [], []
+    efg_pct =  None
+    print(f'team they played: {team}')
+    for trb in tr_body2:
+        for td in trb.find_all('td'):
+            if td.get('data-stat') == 'date':
+                if td.get_text() == date_without_time:
+                    continue
+                else:
+                    break
+            if td.get('data-stat') == "efg_pct":
+                efg_pct = td.get_text()
+    return efg_pct
+
 def html_to_df_web_scrape_cbb(URL,URL1,team,year):
     #URL = Basic data ; URL1 = Advanced stats
     url_srs = f'https://www.sports-reference.com/cbb/schools/{team}/men/{year}-schedule.html'
@@ -142,6 +184,8 @@ def html_to_df_web_scrape_cbb(URL,URL1,team,year):
     opp_pf= []
     game_loc = []
     srs = []
+    date_save = []
+    efg_percent_opp = []
     # opp_srs = []
     #SIMPLE RATING SYSTEM
     # teams_sports_ref = read_csv('teams_sports_ref_format.csv')
@@ -172,6 +216,19 @@ def html_to_df_web_scrape_cbb(URL,URL1,team,year):
                     game_result.append(1)
                 else:
                     game_result.append(0)
+            if td.get('data-stat') == "date":
+                parsed_date = datetime.strptime(td.get_text(), '%Y-%m-%d')
+                month = parsed_date.month
+                day = parsed_date.day
+                date_save.append(float(f'{month}.{day}'))
+            #TODO: FIX THIS IN THE FUTURE TO ADD OPPONENT VARIABLES
+            # if td.get('data-stat') == "opp_team_id":
+            #     opp_name = alter_string(td.get_text())
+            #     try:
+            #         efg_percent_opp.append(get_adv_opp_variables(opp_name,parsed_date))
+            #     except:
+            #         print(f'no advanced data for {opp_name}, advanced opponent variables are None')
+            #         efg_percent_opp.append(nan)
             if td.get('data-stat') == "pts":
                 pts.append(td.get_text())
             if td.get('data-stat') == "opp_pts":
@@ -243,6 +300,8 @@ def html_to_df_web_scrape_cbb(URL,URL1,team,year):
     #ADVANCED STATS
     off_rtg = []
     def_rtg = []
+    off_rtg_opp = []
+    def_rtg_opp = []
     pace = []
     fta_per_fga_pct = []
     fg3a_per_fga_pct = []
@@ -263,7 +322,9 @@ def html_to_df_web_scrape_cbb(URL,URL1,team,year):
         for td in trb.find_all('td'):
             if td.get('data-stat') == "off_rtg":
                 off_rtg.append(td.get_text())
+                def_rtg_opp.append(td.get_text())
             if td.get('data-stat') == "def_rtg":
+                off_rtg_opp.append(td.get_text())
                 def_rtg.append(td.get_text())
             if td.get('data-stat') == "pace":
                 pace.append(td.get_text())
@@ -303,14 +364,17 @@ def html_to_df_web_scrape_cbb(URL,URL1,team,year):
     opp_ft,opp_fta,opp_ft_pct,opp_orb,opp_trb,opp_ast,opp_stl,opp_blk,opp_tov,
     opp_pf, off_rtg,def_rtg,pace,fta_per_fga_pct,fg3a_per_fga_pct,ts_pct,
     trb_pct,ast_pct,stl_pct,blk_pct,efg_pct,tov_pct,orb_pct,ft_rate,opp_efg_pct,
-    opp_tov_pct,drb_pct,opp_ft_rate,game_loc,srs)),
+    opp_tov_pct,drb_pct,opp_ft_rate,game_loc,srs,date_save,
+    off_rtg_opp,def_rtg_opp)),
             columns =['game_result','pts','opp_pts','fg','fga',
             'fg_pct','fg3','fg3a','fg3_pct','ft','fta','ft_pct','orb','total_board','ast',
             'stl','blk','tov','pf','opp_fg','opp_fga','opp_fg_pct','opp_fg3','opp_fg3a','opp_fg3_pct',
             'opp_ft','opp_fta','opp_ft_pct','opp_orb','opp_trb','opp_ast','opp_stl','opp_blk','opp_tov',
             'opp_pf','off_rtg','def_rtg','pace','fta_per_fga_pct','fg3a_per_fga_pct','ts_pct',
             'trb_pct','ast_pct','stl_pct','blk_pct','efg_pct','tov_pct','orb_pct','ft_rate','opp_efg_pct',
-            'opp_tov_pct','drb_pct','opp_ft_rate','game_loc','simple_rating_system'])
+            'opp_tov_pct','drb_pct','opp_ft_rate','game_loc','simple_rating_system','date_played',
+            'opp_off_rtg','opp_def_rtg'])
+
 def get_espn(URL,team_1,team_2):
     team_1 = create_acr(team_1)
     team_2 = create_acr(team_2)
