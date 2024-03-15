@@ -505,7 +505,13 @@ class cbbClass():
                     team_1_df2023 = self.scaler.transform(team_1_df2023)
                     team_2_df_copy = self.scaler.transform(team_2_df_copy)
                     team_1_df2023 = self.pca.transform(team_1_df2023)
-                    team_2_df_copy = self.pca.transform(team_2_df_copy)                    
+                    team_2_df_copy = self.pca.transform(team_2_df_copy)     
+
+                    #make df for other analysis
+                    team_1_df_separate = DataFrame(team_1_df2023).abs()
+                    team_2_df_separate = DataFrame(team_2_df_copy).abs()
+                    prop_1 = team_1_df_separate.std() / team_1_df_separate.mean()
+                    prop_2 = team_2_df_separate.std() / team_2_df_separate.mean()
                 else:
                     team_1_df2023.drop(columns=['game_result'],inplace=True)
                     team_2_df2023.drop(columns=['game_result'],inplace=True)
@@ -522,7 +528,7 @@ class cbbClass():
                     team_1_df2023 = DataFrame(team_1_df2023,columns=self.cols_save)
                     team_2_df2023 = DataFrame(team_2_df2023,columns=self.cols_save) 
 
-                ma_range = np.arange(2,5,1) #2 was the most correct value for mean and 8 was the best for the median; chose 9 for tiebreaking
+                ma_range = np.arange(2,10,1) #2 was the most correct value for mean and 8 was the best for the median; chose 9 for tiebreaking
                 # team_1_count = 0
                 # team_2_count = 0
                 # team_1_count_mean = 0
@@ -538,7 +544,7 @@ class cbbClass():
 
                 #TEAM 1 VS TEAM 2
                 #every game of one team vs every game for other team
-                for _ in range(len(team_1_df2023) * 2):
+                for _ in tqdm(range(len(team_1_df2023) * 20)):
                     if self.which_analysis == 'pca':
                         random_row_df1 = team_1_df2023[np.random.choice(len(team_1_df2023), size=1),:]
                         random_row_df2 = team_2_df_copy[np.random.choice(len(team_2_df_copy), size=1),:]
@@ -776,6 +782,13 @@ class cbbClass():
                 else:
                     print(Fore.RED + Style.BRIGHT + f'{team_1} SRS data: {team_1_srs}'+ Style.RESET_ALL)
                     print(Fore.GREEN + Style.BRIGHT + f'{team_2} SRS data: {team_2_srs}'+ Style.RESET_ALL)
+                print('===============================================================')
+                if np.mean(prop_1.sum()) < np.mean(prop_2.sum()):
+                    print(Fore.GREEN + Style.BRIGHT + f'{team_1} summed variability: {prop_1.sum()}'+ Style.RESET_ALL)
+                    print(Fore.RED + Style.BRIGHT + f'{team_2} summed variability: {prop_2.sum()}'+ Style.RESET_ALL)
+                else:
+                    print(Fore.RED + Style.BRIGHT + f'{team_1} summed variability: {prop_1.sum()}'+ Style.RESET_ALL)
+                    print(Fore.GREEN + Style.BRIGHT + f'{team_2} summed variability: {prop_2.sum()}'+ Style.RESET_ALL)
                 print('===============================================================')
                 if np.mean(team_1_ma_win) > np.mean(team_2_ma_win):
                     print(Fore.GREEN + Style.BRIGHT + f'{team_1} average win probabilities: {np.mean(team_1_ma_win)}'+ Style.RESET_ALL)
