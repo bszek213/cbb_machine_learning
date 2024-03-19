@@ -505,7 +505,13 @@ class cbbClass():
                     team_1_df2023 = self.scaler.transform(team_1_df2023)
                     team_2_df_copy = self.scaler.transform(team_2_df_copy)
                     team_1_df2023 = self.pca.transform(team_1_df2023)
-                    team_2_df_copy = self.pca.transform(team_2_df_copy)                    
+                    team_2_df_copy = self.pca.transform(team_2_df_copy)     
+
+                    #make df for other analysis
+                    team_1_df_separate = DataFrame(team_1_df2023).abs()
+                    team_2_df_separate = DataFrame(team_2_df_copy).abs()
+                    prop_1 = team_1_df_separate.std() / team_1_df_separate.mean()
+                    prop_2 = team_2_df_separate.std() / team_2_df_separate.mean()
                 else:
                     team_1_df2023.drop(columns=['game_result'],inplace=True)
                     team_2_df2023.drop(columns=['game_result'],inplace=True)
@@ -522,7 +528,7 @@ class cbbClass():
                     team_1_df2023 = DataFrame(team_1_df2023,columns=self.cols_save)
                     team_2_df2023 = DataFrame(team_2_df2023,columns=self.cols_save) 
 
-                ma_range = np.arange(2,5,1) #2 was the most correct value for mean and 8 was the best for the median; chose 9 for tiebreaking
+                ma_range = np.arange(2,10,1) #2 was the most correct value for mean and 8 was the best for the median; chose 9 for tiebreaking
                 # team_1_count = 0
                 # team_2_count = 0
                 # team_1_count_mean = 0
@@ -530,15 +536,39 @@ class cbbClass():
                 team_1_ma_win = []
                 team_2_ma_win = []
                 random_pred_1, random_pred_2 = [], []
+                random_pred_1_monte, random_pred_2_monte = [], []
                 qt_best_team_1, qt_best_team_2 = [], []
                 qt_worst_team_1, qt_worst_team_2 = [], []
                 #get latest SRS value
                 team_1_srs = cbb_web_scraper.get_latest_srs(team_1)
                 team_2_srs = cbb_web_scraper.get_latest_srs(team_2)
 
-                #TEAM 1 VS TEAM 2
+                # #Monte carlo simulation
+                num_simulations = 1000
+                mean_1 = np.mean(team_1_df2023, axis=0)
+                std_1 = np.std(team_1_df2023, axis=0)
+                mean_2 = np.mean(team_2_df_copy, axis=0)
+                std_2 = np.std(team_2_df_copy, axis=0)
+                for _ in tqdm(range(num_simulations)):
+                    random_stats_team_1 = np.random.normal(mean_1, std_1, size=(1,team_1_df_separate.shape[1]))
+                    random_stats_team_2 = np.random.normal(mean_2, std_2, size=(1,team_2_df_separate.shape[1]))
+                    random_stats_team_1 = random_stats_team_1[0]
+                    random_stats_team_2 = random_stats_team_2[0]
+                    outcome_team_1 = self.xgb_class.predict_proba([random_stats_team_1])
+                    outcome_deep_1 = self.final_model_deep.predict([np.expand_dims(random_stats_team_1, axis=0)])
+                    outcome_team_2 = self.xgb_class.predict_proba([random_stats_team_2])
+                    outcome_deep_2 = self.final_model_deep.predict([np.expand_dims(random_stats_team_2, axis=0)])
+                    random_pred_1_monte.append(outcome_team_1[0][1])
+                    random_pred_1_monte.append(outcome_deep_1[0][1])
+                    random_pred_2_monte.append(outcome_team_1[0][0])
+                    random_pred_2_monte.append(outcome_team_1[0][0])
+                    random_pred_2_monte.append(outcome_team_2[0][1])
+                    random_pred_2_monte.append(outcome_deep_2[0][1])
+                    random_pred_1_monte.append(outcome_team_2[0][0])
+                    random_pred_1_monte.append(outcome_deep_2[0][0])
+
                 #every game of one team vs every game for other team
-                for _ in range(len(team_1_df2023) * 2):
+                for _ in tqdm(range(len(team_1_df2023) * 30)):
                     if self.which_analysis == 'pca':
                         random_row_df1 = team_1_df2023[np.random.choice(len(team_1_df2023), size=1),:]
                         random_row_df2 = team_2_df_copy[np.random.choice(len(team_2_df_copy), size=1),:]
@@ -554,7 +584,6 @@ class cbbClass():
                     #         else:
                     #             new_col = col.replace("opp_", "")
                     #             random_row_df1.at[random_row_df1.index[0], col] = random_row_df2.at[random_row_df2.index[0], new_col]
-                    
                     outcome_team_1 = self.xgb_class.predict_proba(random_row_df1)
                     outcome_team_2 = self.xgb_class.predict_proba(random_row_df2)
                     outcome_deep_1 = self.final_model_deep.predict(random_row_df1)
@@ -777,6 +806,13 @@ class cbbClass():
                     print(Fore.RED + Style.BRIGHT + f'{team_1} SRS data: {team_1_srs}'+ Style.RESET_ALL)
                     print(Fore.GREEN + Style.BRIGHT + f'{team_2} SRS data: {team_2_srs}'+ Style.RESET_ALL)
                 print('===============================================================')
+                if np.mean(prop_1.sum()) < np.mean(prop_2.sum()):
+                    print(Fore.GREEN + Style.BRIGHT + f'{team_1} summed variability: {prop_1.sum()}'+ Style.RESET_ALL)
+                    print(Fore.RED + Style.BRIGHT + f'{team_2} summed variability: {prop_2.sum()}'+ Style.RESET_ALL)
+                else:
+                    print(Fore.RED + Style.BRIGHT + f'{team_1} summed variability: {prop_1.sum()}'+ Style.RESET_ALL)
+                    print(Fore.GREEN + Style.BRIGHT + f'{team_2} summed variability: {prop_2.sum()}'+ Style.RESET_ALL)
+                print('===============================================================')
                 if np.mean(team_1_ma_win) > np.mean(team_2_ma_win):
                     print(Fore.GREEN + Style.BRIGHT + f'{team_1} average win probabilities: {np.mean(team_1_ma_win)}'+ Style.RESET_ALL)
                     print(Fore.RED + Style.BRIGHT + f'{team_2} average win probabilities: {np.mean(team_2_ma_win)}'+ Style.RESET_ALL)
@@ -804,6 +840,14 @@ class cbbClass():
                 else:
                     print(Fore.RED + Style.BRIGHT + f'{team_1} average win probabilities randomly selecting games: {np.mean(random_pred_1)}'+ Style.RESET_ALL)
                     print(Fore.GREEN + Style.BRIGHT + f'{team_2} average win probabilities randomly selecting games: {np.mean(random_pred_2)}'+ Style.RESET_ALL)
+                print('===============================================================')
+                if np.mean(random_pred_1_monte) > np.mean(random_pred_2_monte):
+                    print(Fore.GREEN + Style.BRIGHT + f'{team_1} average win probabilities Monte Carlo Simulation: {np.mean(random_pred_1_monte)}'+ Style.RESET_ALL)
+                    print(Fore.RED + Style.BRIGHT + f'{team_2} average win probabilities Monte Carlo Simulation: {np.mean(random_pred_2_monte)}'+ Style.RESET_ALL)
+                else:
+                    print(Fore.RED + Style.BRIGHT + f'{team_1} average win probabilities Monte Carlo Simulation: {np.mean(random_pred_1_monte)}'+ Style.RESET_ALL)
+                    print(Fore.GREEN + Style.BRIGHT + f'{team_2} average win probabilities Monte Carlo Simulation: {np.mean(random_pred_2_monte)}'+ Style.RESET_ALL)
+                
                 # if "tod" in sys.argv[2]:
                 #     date_today = str(datetime.now().date()).replace("-", "")
                 # elif "tom" in sys.argv[2]:
